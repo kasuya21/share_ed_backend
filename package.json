@@ -1,0 +1,40 @@
+{
+  "name": "share-ed-backend",
+  "version": "1.0.0",
+  "description": "this is restful API for share-ed",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --watch index.js"
+  },
+  "keywords": [
+    "this",
+    "is",
+    "server",
+    "for",
+    "share",
+    "ed"
+  ],
+  "author": "SHARE-ED",
+  "license": "ISC",
+  "dependencies": {
+    "@cloudinary/url-gen": "^1.22.0",
+    "@prisma/adapter-pg": "^7.4.2",
+    "@prisma/client": "^7.4.2",
+    "@supabase/supabase-js": "^2.99.0",
+    "@tailwindcss/vite": "^4.2.0",
+    "axios": "^1.13.5",
+    "cloudinary": "^2.9.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "@types/pg": "^8.18.0",
+    "prisma": "^7.4.2"
+  }
+}

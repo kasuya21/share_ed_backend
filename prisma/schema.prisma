@@ -1,0 +1,399 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+//////////////////////
+// ENUM
+//////////////////////
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum EducationLevel {
+  MIDDLE_SCHOOL
+  HIGH_SCHOOL
+  UNIVERSITY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  PDF
+}
+
+enum ItemType {
+  THEME
+  FRAME
+}
+
+enum NotificationTypeCode {
+  NEW_FOLLOWER
+  NEW_LIKE
+  NEW_COMMENT
+  QUEST_COMPLETED
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+//////////////////////
+// USER
+//////////////////////
+
+model User {
+  id String @id @map("user_id")
+
+  email    String @unique
+  username String @unique
+
+  profile_image String?
+  bio           String?
+
+  role   Role       @default(USER)
+  status UserStatus @default(ACTIVE)
+
+  education_level EducationLevel?
+
+  coin_balance Int @default(0)
+
+  current_theme_id String?
+  current_frame_id String?
+
+  current_theme ShopItem? @relation("UserTheme", fields: [current_theme_id], references: [id])
+  current_frame ShopItem? @relation("UserFrame", fields: [current_frame_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  posts     Post[]
+  comments  Comment[]
+  likes     Like[]
+  bookmarks Bookmark[]
+
+  followers Follow[] @relation("followers")
+  following Follow[] @relation("following")
+
+  notifications Notification[]
+
+  purchases   Purchase[]
+  user_quests UserQuest[]
+  views PostView[]
+
+
+  @@map("users")
+}
+
+//////////////////////
+// POSTS
+//////////////////////
+
+model Post {
+  id String @id @default(uuid()) @map("post_id")
+
+  title   String
+  summary String
+  content String
+
+  post_status PostStatus @default(DRAFT)
+
+  view_count Int @default(0)
+
+  education_level EducationLevel
+
+  author_id String
+  author    User @relation(fields: [author_id], references: [id])
+
+  category_id String?
+  category Category? @relation(fields: [category_id], references: [id])
+
+  media     PostMedia[]
+  comments  Comment[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  tags      PostTag[]
+
+  created_at DateTime @default(now())
+  views PostView[]
+
+
+  @@index([author_id])
+  @@map("posts")
+}
+
+//////////////////////
+// COMMENTS
+//////////////////////
+
+model Comment {
+  id String @id @default(uuid()) @map("comment_id")
+
+  content String
+
+  user_id String
+  post_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("comments")
+}
+
+//////////////////////
+// LIKES
+//////////////////////
+
+model Like {
+  id String @id @default(uuid()) @map("like_id")
+
+  user_id String
+  post_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@unique([user_id, post_id])
+  @@map("likes")
+}
+
+//////////////////////
+// BOOKMARKS
+//////////////////////
+
+model Bookmark {
+  id String @id @default(uuid()) @map("bookmark_id")
+
+  user_id String
+  post_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@unique([user_id, post_id])
+  @@map("bookmarks")
+}
+
+//////////////////////
+// CATEGORY
+//////////////////////
+
+model Category {
+  id String @id @default(uuid()) @map("category_id")
+
+  name String
+
+  posts Post[]
+
+  @@map("categories")
+}
+
+//////////////////////
+// TAG
+//////////////////////
+
+model Tag {
+  id String @id @default(uuid()) @map("tag_id")
+
+  tag_name String
+
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+//////////////////////
+// POST TAGS
+//////////////////////
+
+model PostTag {
+  id String @id @default(uuid())
+
+  post_id String
+  tag_id  String
+
+  post Post @relation(fields: [post_id], references: [id])
+  tag  Tag  @relation(fields: [tag_id], references: [id])
+
+  @@unique([post_id, tag_id])
+  @@map("post_tags")
+}
+
+//////////////////////
+// POST MEDIA
+//////////////////////
+
+model PostMedia {
+  id String @id @default(uuid()) @map("post_media_id")
+
+  media_url  String
+  media_type MediaType
+
+  post_id String
+  post    Post @relation(fields: [post_id], references: [id])
+
+  @@map("post_media")
+}
+
+//////////////////////
+// FOLLOW
+//////////////////////
+
+model Follow {
+  id String @id @default(uuid())
+
+  follower_id  String
+  following_id String
+
+  follower  User @relation("followers", fields: [follower_id], references: [id])
+  following User @relation("following", fields: [following_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@unique([follower_id, following_id])
+  @@map("follows")
+}
+
+//////////////////////
+// NOTIFICATION
+//////////////////////
+
+model Notification {
+  id String @id @default(uuid()) @map("notification_id")
+
+  user_id String
+  type_id String
+
+  message String
+  is_read Boolean @default(false)
+
+  user User @relation(fields: [user_id], references: [id])
+  type NotificationType @relation(fields: [type_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model NotificationType {
+  id String @id @default(uuid()) @map("notificationtype_id")
+
+  type_code   String
+  description String
+
+  notifications Notification[]
+
+  @@map("notification_types")
+}
+
+//////////////////////
+// SHOP
+//////////////////////
+
+model ShopItem {
+  id String @id @map("item_id")
+
+  item_name String
+  item_type ItemType
+
+  price Int
+
+  image_url String?
+
+  is_active Boolean @default(true)
+
+  purchases Purchase[]
+
+  theme_users User[] @relation("UserTheme")
+  frame_users User[] @relation("UserFrame")
+
+  @@map("shop_items")
+}
+
+model Purchase {
+  id String @id @default(uuid()) @map("purchase_id")
+
+  user_id String
+  item_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  item ShopItem @relation(fields: [item_id], references: [id])
+
+  purchased_at DateTime @default(now())
+
+  @@map("purchases")
+}
+
+//////////////////////
+// QUEST
+//////////////////////
+
+model Quest {
+  id String @id @default(uuid()) @map("quest_id")
+
+  quest_name String
+  quest_type String
+
+  target_value Int
+  reward_coin  Int
+
+  is_daily Boolean @default(false)
+
+  user_quests UserQuest[]
+
+  @@map("quests")
+}
+
+model UserQuest {
+  id String @id @default(uuid()) @map("uq_id")
+
+  user_id  String
+  quest_id String
+
+  current_progress Int @default(0)
+  completed_at     DateTime?
+
+  user  User  @relation(fields: [user_id], references: [id])
+  quest Quest @relation(fields: [quest_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@unique([user_id, quest_id])
+  @@map("user_quests")
+}
+
+model PostView {
+  id String @id @default(uuid()) @map("view_id")
+
+  user_id String
+  post_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
+
+  viewed_at DateTime @default(now())
+
+  @@unique([user_id, post_id]) // ⭐ กันดูซ้ำ
+  @@map("post_views")
+}
