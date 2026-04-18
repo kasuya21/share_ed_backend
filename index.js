@@ -3,9 +3,7 @@ import "dotenv/config";
 
 // import userRouter from "./routes/user.routes.js";
 import authRoutes from "./routers/auth.router.js";
-
-
-
+import questRoutes from "./routers/quest.router.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -15,7 +13,7 @@ app.use(express.urlencoded({ extended: true }));
 // routes
 // app.use("/api/v1/user", userRouter);
 app.use("/api/v1/auth", authRoutes);
-
+app.use("/api/v1/quest", questRoutes);
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
