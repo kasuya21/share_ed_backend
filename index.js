@@ -1,8 +1,9 @@
 import express from "express";
 import "dotenv/config";
 
-// import userRouter from "./routes/user.routes.js";
+
 import authRoutes from "./routers/auth.router.js";
+import shopItemRoutes from "./routers/shopItem.router.js";
 
 import questRoutes from "./routers/quest.router.js";
 =======
@@ -16,9 +17,9 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// routes
-// app.use("/api/v1/user", userRouter);
+
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/shop-items", shopItemRoutes);
 
 app.use("/api/v1/quest", questRoutes);
 =======
