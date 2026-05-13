@@ -11,7 +11,7 @@ datasource db {
 //////////////////////
 
 enum Role {
-  USER
+  MEMBER
   MODERATOR
   ADMIN
 }
@@ -65,7 +65,7 @@ model User {
   profile_image String?
   bio           String?
 
-  role   Role       @default(USER)
+  role   Role       @default(MEMBER)
   status UserStatus @default(ACTIVE)
 
   education_level EducationLevel?
