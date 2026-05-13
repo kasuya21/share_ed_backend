@@ -6,9 +6,12 @@ import authRoutes from "./routers/auth.router.js";
 import shopItemRoutes from "./routers/shopItem.router.js";
 
 import questRoutes from "./routers/quest.router.js";
-=======
+
 import commentRoutes from "./routers/comment.router.js";
 import postRoutes from "./routers/post.router.js";
+import likeRoutes from "./routers/like.router.js";
+import bookmarkRoutes from "./routers/bookmark.router.js";
+import userRoutes from "./routers/user.router.js";
 
 
 const app = express();
@@ -22,9 +25,12 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/shop-items", shopItemRoutes);
 
 app.use("/api/v1/quest", questRoutes);
-=======
+
 app.use("/api/v1/comment", commentRoutes);
 app.use("/api/v1/posts", postRoutes);
+app.use("/api/v1/likes", likeRoutes);
+app.use("/api/v1/bookmarks", bookmarkRoutes);
+app.use("/api/v1/users", userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
