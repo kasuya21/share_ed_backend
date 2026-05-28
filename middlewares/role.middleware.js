@@ -23,3 +23,27 @@ export const isModeratorOrAdmin = async (req, res, next) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const isAdmin = async (req, res, next) => {
+  try {
+    const user_id = req.user.id;
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user_id },
+      select: { role: true }
+    });
+
+    if (!dbUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (dbUser.role !== "ADMIN") {
+      return res.status(403).json({ message: "Forbidden: Requires Admin role" });
+    }
+
+    req.userRole = dbUser.role;
+    next();
+  } catch (error) {
+    console.error("Admin role middleware error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
