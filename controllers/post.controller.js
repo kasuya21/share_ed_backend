@@ -328,3 +328,111 @@ export const getUserPosts = async (req, res) => {
     });
   }
 };
+
+export const getTrendingPosts = async (req, res) => {
+  try {
+    const lastWeek = new Date();
+    lastWeek.setDate(lastWeek.getDate() - 7);
+
+    // Get post IDs with most views in the last 7 days
+    const trendingViews = await prisma.postView.groupBy({
+      by: ['post_id'],
+      where: {
+        viewed_at: { gte: lastWeek },
+        post: { post_status: "PUBLISHED" }
+      },
+      _count: { post_id: true },
+      orderBy: {
+        _count: { post_id: 'desc' }
+      },
+      take: 10
+    });
+
+    if (trendingViews.length === 0) {
+      // Fallback: get posts with highest all-time views if no recent views
+      const fallbackPosts = await prisma.post.findMany({
+        where: { post_status: "PUBLISHED" },
+        include: {
+          author: { select: { id: true, username: true, profile_image: true } },
+          category: true,
+          media: true,
+          _count: { select: { comments: true, likes: true, bookmarks: true } }
+        },
+        orderBy: { view_count: "desc" },
+        take: 10
+      });
+      return res.status(200).json({ success: true, data: fallbackPosts });
+    }
+
+    const postIds = trendingViews.map(tv => tv.post_id);
+
+    const posts = await prisma.post.findMany({
+      where: {
+        id: { in: postIds },
+        post_status: "PUBLISHED"
+      },
+      include: {
+        author: {
+          select: { id: true, username: true, profile_image: true }
+        },
+        category: true,
+        media: true,
+        _count: {
+          select: { comments: true, likes: true, bookmarks: true }
+        }
+      }
+    });
+
+    // Sort posts based on the order of postIds (highest views first)
+    const sortedPosts = posts.sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id));
+
+    res.status(200).json({
+      success: true,
+      data: sortedPosts
+    });
+  } catch (error) {
+    console.error("Get trending posts error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch trending posts"
+    });
+  }
+};
+
+export const getMostLikedPosts = async (req, res) => {
+  try {
+    const posts = await prisma.post.findMany({
+      where: {
+        post_status: "PUBLISHED"
+      },
+      include: {
+        author: {
+          select: { id: true, username: true, profile_image: true }
+        },
+        category: true,
+        media: true,
+        _count: {
+          select: { comments: true, likes: true, bookmarks: true }
+        }
+      },
+      orderBy: {
+        likes: {
+          _count: "desc"
+        }
+      },
+      take: 10
+    });
+
+    res.status(200).json({
+      success: true,
+      data: posts
+    });
+  } catch (error) {
+    console.error("Get most liked posts error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch most liked posts"
+    });
+  }
+};
+
