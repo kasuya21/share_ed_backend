@@ -6,19 +6,23 @@ import {
   createPost,
   updatePost,
   deletePost,
-  getUserPosts
+  getUserPosts,
+  getTrendingPosts,
+  getMostLikedPosts
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
 
 
 router.get("/", getAllPosts);
+router.get("/trending", getTrendingPosts);
+router.get("/most-liked", getMostLikedPosts);
+router.get("/user/my-posts", authMiddleware, getUserPosts);
 router.get("/:id", getPostById);
 
 //require authentication
 router.post("/", authMiddleware, createPost);
 router.put("/:id", authMiddleware, updatePost);
 router.delete("/:id", authMiddleware, deletePost);
-router.get("/user/my-posts", authMiddleware, getUserPosts);
 
 export default router;

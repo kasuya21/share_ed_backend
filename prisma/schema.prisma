@@ -50,6 +50,7 @@ enum PostStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+  UNACTIVED
 }
 
 //////////////////////
@@ -94,6 +95,7 @@ model User {
   purchases   Purchase[]
   user_quests UserQuest[]
   views PostView[]
+  reports     Report[]
 
 
   @@map("users")
@@ -130,6 +132,7 @@ model Post {
 
   created_at DateTime @default(now())
   views PostView[]
+  reports Report[]
 
 
   @@index([author_id])
@@ -396,4 +399,25 @@ model PostView {
 
   @@unique([user_id, post_id]) // ⭐ กันดูซ้ำ
   @@map("post_views")
+}
+
+//////////////////////
+// REPORTS
+//////////////////////
+
+model Report {
+  id String @id @default(uuid()) @map("report_id")
+
+  reason String
+
+  user_id String
+  post_id String
+
+  user User @relation(fields: [user_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
+
+  created_at DateTime @default(now())
+
+  @@unique([user_id, post_id])
+  @@map("reports")
 }
