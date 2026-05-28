@@ -299,7 +299,7 @@ model Notification {
 model NotificationType {
   id String @id @default(uuid()) @map("notificationtype_id")
 
-  type_code   String
+  type_code   String @unique
   description String
 
   notifications Notification[]
