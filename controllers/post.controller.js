@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const getAllPosts = async (req, res) => {
   try {
@@ -140,6 +141,27 @@ export const createPost = async (req, res) => {
         }
       }
     });
+
+    // 🔔 แจ้งเตือน Followers เมื่อโพสต์ถูก PUBLISHED
+    if (post.post_status === "PUBLISHED") {
+      const authorUser = await prisma.user.findUnique({
+        where: { id: author_id },
+        select: { username: true }
+      });
+      const followers = await prisma.follow.findMany({
+        where: { following_id: author_id },
+        select: { follower_id: true }
+      });
+      await Promise.all(
+        followers.map(f =>
+          createNotification(
+            f.follower_id,
+            "NEW_POST",
+            `${authorUser.username} just published a new post: "${post.title}"`
+          )
+        )
+      );
+    }
 
     res.status(201).json({
       success: true,

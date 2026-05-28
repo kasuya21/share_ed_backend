@@ -7,6 +7,10 @@ import questRoutes from "./routers/quest.router.js";
 
 import commentRoutes from "./routers/comment.router.js";
 import postRoutes from "./routers/post.router.js";
+
+import followRoutes from "./routers/follow.router.js";
+import notificationRoutes from "./routers/notification.router.js";
+
 import likeRoutes from "./routers/like.router.js";
 import bookmarkRoutes from "./routers/bookmark.router.js";
 import userRoutes from "./routers/user.router.js";
@@ -27,6 +31,9 @@ app.use("/api/v1/quest", questRoutes);
 
 app.use("/api/v1/comment", commentRoutes);
 app.use("/api/v1/posts", postRoutes);
+
+app.use("/api/v1/follow", followRoutes);
+app.use("/api/v1/notifications", notificationRoutes);
 
 app.use("/api/v1/likes", likeRoutes);
 app.use("/api/v1/bookmarks", bookmarkRoutes);

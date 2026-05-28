@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const createComment = async (req, res) => {
   try {
@@ -28,6 +28,23 @@ export const createComment = async (req, res) => {
     });
 
     res.status(201).json(comment);
+
+    // 🔔 แจ้งเจ้าของโพสต์ว่ามีคนเข้ามา comment (ไม่แจ้งตัวเอง)
+    const post = await prisma.post.findUnique({
+      where: { id: post_id },
+      select: { author_id: true, title: true }
+    });
+    if (post && post.author_id !== user_id) {
+      const commenter = await prisma.user.findUnique({
+        where: { id: user_id },
+        select: { username: true }
+      });
+      await createNotification(
+        post.author_id,
+        "NEW_COMMENT",
+        `${commenter.username} commented on your post "${post.title}"`
+      );
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
