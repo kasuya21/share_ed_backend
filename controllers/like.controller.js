@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const toggleLike = async (req, res) => {
   try {
@@ -33,6 +34,20 @@ export const toggleLike = async (req, res) => {
           post_id: postId
         }
       });
+
+      // 🔔 แจ้งเจ้าของโพสต์ (ไม่แจ้งตัวเอง)
+      if (post.author_id !== userId) {
+        const liker = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { username: true }
+        });
+        await createNotification(
+          post.author_id,
+          "NEW_LIKE",
+          `${liker.username} liked your post "${post.title}"`
+        );
+      }
+
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });
     }
   } catch (error) {
@@ -40,3 +55,4 @@ export const toggleLike = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to toggle like" });
   }
 };
+

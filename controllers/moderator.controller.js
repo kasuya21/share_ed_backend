@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const getReportedPosts = async (req, res) => {
   try {
@@ -51,20 +52,29 @@ export const actionOnPost = async (req, res) => {
     }
 
     if (action === "RESTORE") {
-      // Clear reports and restore to PUBLISHED
       await prisma.$transaction([
         prisma.report.deleteMany({ where: { post_id } }),
-        prisma.post.update({
-          where: { id: post_id },
-          data: { post_status: "PUBLISHED" }
-        })
+        prisma.post.update({ where: { id: post_id }, data: { post_status: "PUBLISHED" } })
       ]);
+
+      // 🔔 แจ้งเจ้าของโพสต์ว่าได้รับการคืนสถานะ
+      await createNotification(
+        post.author_id,
+        "POST_RESTORED",
+        `Your post "${post.title}" has been reviewed and restored by a moderator`
+      );
+
       return res.status(200).json({ message: "Post restored successfully" });
     } else if (action === "SOFT_DELETE") {
-      await prisma.post.update({
-        where: { id: post_id },
-        data: { post_status: "ARCHIVED" } 
-      });
+      await prisma.post.update({ where: { id: post_id }, data: { post_status: "ARCHIVED" } });
+
+      // 🔔 แจ้งเจ้าของโพสต์ว่าถูกลบออก
+      await createNotification(
+        post.author_id,
+        "POST_REMOVED",
+        `Your post "${post.title}" has been removed after review by a moderator`
+      );
+
       return res.status(200).json({ message: "Post soft deleted successfully" });
     }
 

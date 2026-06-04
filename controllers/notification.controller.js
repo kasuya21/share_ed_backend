@@ -11,14 +11,6 @@ export const getMyNotifications = async (req, res) => {
 
     const notifications = await prisma.notification.findMany({
       where: { user_id },
-      include: {
-        type: {
-          select: {
-            type_code: true,
-            description: true
-          }
-        }
-      },
       orderBy: { created_at: "desc" }
     });
 

@@ -1,9 +1,10 @@
 import { prisma } from "../configs/prisma.js";
+import cloudinary from "../configs/cloudinary.config.js";
 
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, profile_image, bio, education_level } = req.body;
+    const { username, bio, education_level } = req.body;
 
     if (username) {
       const existingUser = await prisma.user.findFirst({
@@ -20,7 +21,6 @@ export const updateProfile = async (req, res) => {
 
     const updateData = {};
     if (username !== undefined) updateData.username = username;
-    if (profile_image !== undefined) updateData.profile_image = profile_image;
     if (bio !== undefined) {
       if (bio.length > 500) {
         return res.status(400).json({ success: false, message: "Bio is too long" });
@@ -28,6 +28,28 @@ export const updateProfile = async (req, res) => {
       updateData.bio = bio;
     }
     if (education_level !== undefined) updateData.education_level = education_level;
+
+    // ถ้ามีไฟล์รูปภาพส่งมา → อัปโหลด Cloudinary
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "share-ed/profiles",
+            transformation: [
+              { width: 400, height: 400, crop: "fill", gravity: "face" },
+              { quality: "auto", fetch_format: "auto" }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+
+      updateData.profile_image = uploadResult.secure_url;
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
@@ -49,6 +71,7 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to update profile" });
   }
 };
+
 
 export const equipItem = async (req, res) => {
   try {
@@ -90,5 +113,45 @@ export const equipItem = async (req, res) => {
   } catch (error) {
     console.error("Equip item error:", error);
     res.status(500).json({ success: false, message: "Failed to equip item" });
+  }
+};
+
+// ============================================================
+// GET /api/v1/users/:id  — ดูโปรไฟล์สาธารณะของผู้ใช้คนอื่น
+// ============================================================
+export const getPublicProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        username: true,
+        profile_image: true,
+        bio: true,
+        education_level: true,
+        role: true,
+        created_at: true,
+        current_theme_id: true,
+        current_frame_id: true,
+        _count: {
+          select: {
+            posts: true,
+            followers: true,
+            following: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    console.error("Get public profile error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch profile" });
   }
 };

@@ -6,7 +6,10 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --watch index.js",
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "build": "prisma generate",
+    "postinstall": "prisma generate",
     "seed": "node prisma/seed.js"
   },
   "keywords": [
@@ -24,12 +27,14 @@
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@supabase/supabase-js": "^2.99.0",
-    "cloudinary": "^2.9.0",
+    "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "pg": "^8.20.0"
+    "multer": "^2.1.1",
+    "pg": "^8.20.0",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@types/node": "^25.3.3",

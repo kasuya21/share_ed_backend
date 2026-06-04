@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 // ==========================================
 // QUEST (ADMIN / GLOBAL SETTINGS)
@@ -198,6 +199,13 @@ export const claimQuestReward = async (req, res) => {
       message: "Reward claimed successfully!",
       ...result,
     });
+
+    // 🔔 แจ้งเตือน quest สำเร็จ (fire-and-forget)
+    createNotification(
+      user_id,
+      "QUEST_COMPLETED",
+      `You completed a quest and earned ${result.userQuest.quest?.reward_coin ?? ""} coins!`
+    );
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

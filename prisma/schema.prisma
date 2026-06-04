@@ -6,9 +6,9 @@ datasource db {
   provider = "postgresql"
 }
 
-//////////////////////
-// ENUM
-//////////////////////
+//////////////////////////////////////////////////////
+// ENUMS
+//////////////////////////////////////////////////////
 
 enum Role {
   MEMBER
@@ -40,9 +40,19 @@ enum ItemType {
 }
 
 enum NotificationTypeCode {
+  // Social
   NEW_FOLLOWER
   NEW_LIKE
   NEW_COMMENT
+  NEW_POST
+  // Bookmark
+  BOOKMARK_REMOVED
+  // Post moderation
+  POST_SUSPENDED
+  POST_RESTORED
+  POST_REMOVED
+  POST_REPORTED
+  // Quest
   QUEST_COMPLETED
 }
 
@@ -53,9 +63,17 @@ enum PostStatus {
   UNACTIVED
 }
 
-//////////////////////
+enum QuestType {
+  CREATE_POST
+  RECEIVE_LIKE
+  CREATE_COMMENT
+  LOGIN
+  FOLLOW_USER
+}
+
+//////////////////////////////////////////////////////
 // USER
-//////////////////////
+//////////////////////////////////////////////////////
 
 model User {
   id String @id @map("user_id")
@@ -94,16 +112,18 @@ model User {
 
   purchases   Purchase[]
   user_quests UserQuest[]
-  views PostView[]
+  views       PostView[]
   reports     Report[]
 
-
+  @@index([username])
+  @@index([email])
+  @@index([role])
   @@map("users")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // POSTS
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Post {
   id String @id @default(uuid()) @map("post_id")
@@ -114,12 +134,15 @@ model Post {
 
   post_status PostStatus @default(DRAFT)
 
-  view_count Int @default(0)
-
   education_level EducationLevel
 
+  view_count     Int @default(0)
+  like_count     Int @default(0)
+  comment_count  Int @default(0)
+  bookmark_count Int @default(0)
+
   author_id String
-  author    User @relation(fields: [author_id], references: [id])
+  author User @relation(fields: [author_id], references: [id])
 
   category_id String?
   category Category? @relation(fields: [category_id], references: [id])
@@ -129,19 +152,23 @@ model Post {
   likes     Like[]
   bookmarks Bookmark[]
   tags      PostTag[]
+  views     PostView[]
+  reports   Report[]
 
   created_at DateTime @default(now())
-  views PostView[]
-  reports Report[]
-
+  updated_at DateTime @updatedAt
 
   @@index([author_id])
+  @@index([education_level])
+  @@index([created_at])
+  @@index([like_count])
+  @@index([view_count])
   @@map("posts")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // COMMENTS
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Comment {
   id String @id @default(uuid()) @map("comment_id")
@@ -157,12 +184,14 @@ model Comment {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@index([post_id])
+  @@index([user_id])
   @@map("comments")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // LIKES
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Like {
   id String @id @default(uuid()) @map("like_id")
@@ -176,12 +205,14 @@ model Like {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+  @@index([post_id])
+  @@index([user_id])
   @@map("likes")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // BOOKMARKS
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Bookmark {
   id String @id @default(uuid()) @map("bookmark_id")
@@ -195,40 +226,42 @@ model Bookmark {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+  @@index([post_id])
+  @@index([user_id])
   @@map("bookmarks")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // CATEGORY
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Category {
   id String @id @default(uuid()) @map("category_id")
 
-  name String
+  name String @unique
 
   posts Post[]
 
   @@map("categories")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // TAG
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Tag {
   id String @id @default(uuid()) @map("tag_id")
 
-  tag_name String
+  tag_name String @unique
 
   posts PostTag[]
 
   @@map("tags")
 }
 
-//////////////////////
-// POST TAGS
-//////////////////////
+//////////////////////////////////////////////////////
+// POST TAG
+//////////////////////////////////////////////////////
 
 model PostTag {
   id String @id @default(uuid())
@@ -243,9 +276,9 @@ model PostTag {
   @@map("post_tags")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // POST MEDIA
-//////////////////////
+//////////////////////////////////////////////////////
 
 model PostMedia {
   id String @id @default(uuid()) @map("post_media_id")
@@ -254,65 +287,59 @@ model PostMedia {
   media_type MediaType
 
   post_id String
-  post    Post @relation(fields: [post_id], references: [id])
+  post Post @relation(fields: [post_id], references: [id])
 
   @@map("post_media")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // FOLLOW
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Follow {
   id String @id @default(uuid())
 
-  follower_id  String
+  follower_id String
   following_id String
 
-  follower  User @relation("followers", fields: [follower_id], references: [id])
+  follower User @relation("followers", fields: [follower_id], references: [id])
   following User @relation("following", fields: [following_id], references: [id])
 
   created_at DateTime @default(now())
 
   @@unique([follower_id, following_id])
+  @@index([follower_id])
+  @@index([following_id])
   @@map("follows")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // NOTIFICATION
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Notification {
   id String @id @default(uuid()) @map("notification_id")
 
   user_id String
-  type_id String
+
+  type NotificationTypeCode
 
   message String
+
   is_read Boolean @default(false)
 
   user User @relation(fields: [user_id], references: [id])
-  type NotificationType @relation(fields: [type_id], references: [id])
 
   created_at DateTime @default(now())
 
+  @@index([user_id])
+  @@index([is_read])
   @@map("notifications")
 }
 
-model NotificationType {
-  id String @id @default(uuid()) @map("notificationtype_id")
-
-  type_code   String @unique
-  description String
-
-  notifications Notification[]
-
-  @@map("notification_types")
-}
-
-//////////////////////
+//////////////////////////////////////////////////////
 // SHOP
-//////////////////////
+//////////////////////////////////////////////////////
 
 model ShopItem {
   id String @id @map("item_id")
@@ -323,6 +350,8 @@ model ShopItem {
   price Int
 
   image_url String?
+
+  metadata Json?
 
   is_active Boolean @default(true)
 
@@ -345,21 +374,23 @@ model Purchase {
 
   purchased_at DateTime @default(now())
 
+  @@unique([user_id, item_id])
   @@map("purchases")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // QUEST
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Quest {
   id String @id @default(uuid()) @map("quest_id")
 
   quest_name String
-  quest_type String
+
+  quest_type QuestType
 
   target_value Int
-  reward_coin  Int
+  reward_coin Int
 
   is_daily Boolean @default(false)
 
@@ -371,13 +402,14 @@ model Quest {
 model UserQuest {
   id String @id @default(uuid()) @map("uq_id")
 
-  user_id  String
+  user_id String
   quest_id String
 
   current_progress Int @default(0)
-  completed_at     DateTime?
 
-  user  User  @relation(fields: [user_id], references: [id])
+  completed_at DateTime?
+
+  user User @relation(fields: [user_id], references: [id])
   quest Quest @relation(fields: [quest_id], references: [id])
 
   created_at DateTime @default(now())
@@ -385,6 +417,10 @@ model UserQuest {
   @@unique([user_id, quest_id])
   @@map("user_quests")
 }
+
+//////////////////////////////////////////////////////
+// POST VIEWS
+//////////////////////////////////////////////////////
 
 model PostView {
   id String @id @default(uuid()) @map("view_id")
@@ -397,13 +433,13 @@ model PostView {
 
   viewed_at DateTime @default(now())
 
-  @@unique([user_id, post_id]) // ⭐ กันดูซ้ำ
+  @@unique([user_id, post_id])
   @@map("post_views")
 }
 
-//////////////////////
+//////////////////////////////////////////////////////
 // REPORTS
-//////////////////////
+//////////////////////////////////////////////////////
 
 model Report {
   id String @id @default(uuid()) @map("report_id")

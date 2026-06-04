@@ -3,44 +3,54 @@ import { createNotification } from "../utils/notification.helper.js";
 
 export const getAllPosts = async (req, res) => {
   try {
+    // Phase 2.3 — Search & Filter via query params
+    const { search, level, sort } = req.query;
+
+    const where = { post_status: "PUBLISHED" };
+
+    // Keyword search on title + content
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { content: { contains: search, mode: "insensitive" } }
+      ];
+    }
+
+    // Filter by education level
+    if (level) {
+      where.education_level = level;
+    }
+
+    // Sort order: "latest" (default) | "popular" (by views) | "likes"
+    let orderBy;
+    if (sort === "popular") {
+      orderBy = { view_count: "desc" };
+    } else if (sort === "likes") {
+      orderBy = { likes: { _count: "desc" } };
+    } else {
+      orderBy = { created_at: "desc" };
+    }
+
     const posts = await prisma.post.findMany({
-      where: {
-        post_status: "PUBLISHED"
-      },
+      where,
       include: {
         author: {
-          select: {
-            id: true,
-            username: true,
-            profile_image: true
-          }
+          select: { id: true, username: true, profile_image: true }
         },
         category: true,
         media: true,
         tags: true,
         _count: {
-          select: {
-            comments: true,
-            likes: true,
-            bookmarks: true
-          }
+          select: { comments: true, likes: true, bookmarks: true }
         }
       },
-      orderBy: {
-        created_at: "desc"
-      }
+      orderBy
     });
 
-    res.status(200).json({
-      success: true,
-      data: posts
-    });
+    res.status(200).json({ success: true, data: posts });
   } catch (error) {
     console.error("Get all posts error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch posts"
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch posts" });
   }
 };
 
@@ -118,6 +128,21 @@ export const createPost = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Title, content, and education_level are required"
+      });
+    }
+
+    // Phase 2.1 — จำกัดการสร้างโพสต์ไม่เกิน 3 โพสต์ใน 24 ชั่วโมง
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentPostCount = await prisma.post.count({
+      where: {
+        author_id,
+        created_at: { gte: since24h }
+      }
+    });
+    if (recentPostCount >= 3) {
+      return res.status(429).json({
+        success: false,
+        message: "You have reached the limit of 3 posts per 24 hours"
       });
     }
 
@@ -255,39 +280,26 @@ export const deletePost = async (req, res) => {
     const { id } = req.params;
     const user_id = req.user.id;
 
-
-    const post = await prisma.post.findUnique({
-      where: { id }
-    });
+    const post = await prisma.post.findUnique({ where: { id } });
 
     if (!post) {
-      return res.status(404).json({
-        success: false,
-        message: "Post not found"
-      });
+      return res.status(404).json({ success: false, message: "Post not found" });
     }
 
     if (post.author_id !== user_id) {
-      return res.status(403).json({
-        success: false,
-        message: "You don't have permission to delete this post"
-      });
+      return res.status(403).json({ success: false, message: "You don't have permission to delete this post" });
     }
 
-    await prisma.post.delete({
-      where: { id }
+    // Phase 2.2 — Soft Delete: เปลี่ยน status เป็น ARCHIVED แทนการลบจริง
+    await prisma.post.update({
+      where: { id },
+      data: { post_status: "ARCHIVED" }
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Post deleted successfully"
-    });
+    res.status(200).json({ success: true, message: "Post deleted successfully" });
   } catch (error) {
     console.error("Delete post error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete post"
-    });
+    res.status(500).json({ success: false, message: "Failed to delete post" });
   }
 };
 

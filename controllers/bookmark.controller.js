@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const toggleBookmark = async (req, res) => {
   try {
@@ -21,10 +22,12 @@ export const toggleBookmark = async (req, res) => {
 
     if (existingBookmark) {
       // Remove bookmark
-      await prisma.bookmark.delete({
-        where: { id: existingBookmark.id }
-      });
-      // TODO: Trigger notification for removed bookmark later (Phase 5)
+      await prisma.bookmark.delete({ where: { id: existingBookmark.id } });
+
+      // 🔔 แจ้งเจ้าของตัวเองว่าเอา Bookmark ออกแล้ว (per Requirement)
+      const post = await prisma.post.findUnique({ where: { id: postId }, select: { title: true } });
+      await createNotification(userId, "BOOKMARK_REMOVED", `You removed "${post?.title}" from your bookmarks`);
+
       return res.status(200).json({ success: true, message: "Removed bookmark successfully", isBookmarked: false });
     } else {
       // Add bookmark
