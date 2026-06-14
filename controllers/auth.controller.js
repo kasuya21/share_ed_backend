@@ -21,12 +21,22 @@ export const verifyUser = async (req, res) => {
       where: { id: authUser.id },
     });
 
+    const avatarUrl = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || null;
+
     if (!dbUser) {
       dbUser = await prisma.user.create({
         data: {
           id: authUser.id,
           email: authUser.email,
           username: authUser.email.split("@")[0],
+          profile_image: avatarUrl,
+        },
+      });
+    } else if (!dbUser.profile_image && avatarUrl) {
+      dbUser = await prisma.user.update({
+        where: { id: authUser.id },
+        data: {
+          profile_image: avatarUrl,
         },
       });
     }

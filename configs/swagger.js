@@ -7,8 +7,8 @@ export const swaggerDocument = {
   },
   servers: [
     {
-      url: "http://localhost:3000/api/v1",
-      description: "Development server",
+      url: "https://share-ed-backend-6jer.onrender.com/api/v1",
+      description: "deploy server",
     },
   ],
   components: {
