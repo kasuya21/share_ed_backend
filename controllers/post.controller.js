@@ -121,7 +121,7 @@ export const getPostById = async (req, res) => {
 
 export const createPost = async (req, res) => {
   try {
-    const { title, summary, content, education_level, category_id, post_status } = req.body;
+    const { title, summary, content, education_level, category_id, post_status, tags } = req.body;
     const author_id = req.user.id;
 
     if (!title || !content || !education_level) {
@@ -146,6 +146,18 @@ export const createPost = async (req, res) => {
       });
     }
 
+    const postTagConnects = [];
+    if (tags && Array.isArray(tags)) {
+      for (const tagName of tags) {
+        const tag = await prisma.tag.upsert({
+          where: { tag_name: tagName },
+          update: {},
+          create: { tag_name: tagName },
+        });
+        postTagConnects.push({ tag_id: tag.id });
+      }
+    }
+
     const post = await prisma.post.create({
       data: {
         title,
@@ -154,7 +166,10 @@ export const createPost = async (req, res) => {
         education_level,
         author_id,
         category_id: category_id || null,
-        post_status: post_status || "DRAFT"
+        post_status: post_status || "DRAFT",
+        tags: {
+          create: postTagConnects
+        }
       },
       include: {
         author: {
@@ -162,6 +177,11 @@ export const createPost = async (req, res) => {
             id: true,
             username: true,
             profile_image: true
+          }
+        },
+        tags: {
+          include: {
+            tag: true
           }
         }
       }
@@ -206,7 +226,7 @@ export const createPost = async (req, res) => {
 export const updatePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, summary, content, education_level, category_id, post_status } = req.body;
+    const { title, summary, content, education_level, category_id, post_status, tags } = req.body;
     const user_id = req.user.id;
 
     // Check if post exists and user is the author
@@ -237,6 +257,27 @@ export const updatePost = async (req, res) => {
     if (category_id !== undefined) updateData.category_id = category_id;
     if (post_status !== undefined) updateData.post_status = post_status;
 
+    if (tags !== undefined && Array.isArray(tags)) {
+      // Delete existing post tags first
+      await prisma.postTag.deleteMany({
+        where: { post_id: id }
+      });
+
+      const postTagConnects = [];
+      for (const tagName of tags) {
+        const tag = await prisma.tag.upsert({
+          where: { tag_name: tagName },
+          update: {},
+          create: { tag_name: tagName },
+        });
+        postTagConnects.push({ tag_id: tag.id });
+      }
+
+      updateData.tags = {
+        create: postTagConnects
+      };
+    }
+
     const updatedPost = await prisma.post.update({
       where: { id },
       data: updateData,
@@ -250,6 +291,11 @@ export const updatePost = async (req, res) => {
         },
         category: true,
         media: true,
+        tags: {
+          include: {
+            tag: true
+          }
+        },
         _count: {
           select: {
             comments: true,
