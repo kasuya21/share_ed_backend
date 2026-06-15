@@ -1,5 +1,6 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/upload.middleware.js";
 import {
   getAllPosts,
   getPostById,
@@ -21,8 +22,8 @@ router.get("/user/my-posts", authMiddleware, getUserPosts);
 router.get("/:id", getPostById);
 
 //require authentication
-router.post("/", authMiddleware, createPost);
-router.put("/:id", authMiddleware, updatePost);
+router.post("/", authMiddleware, upload.single("cover_image"), createPost);
+router.put("/:id", authMiddleware, upload.single("cover_image"), updatePost);
 router.delete("/:id", authMiddleware, deletePost);
 
 export default router;

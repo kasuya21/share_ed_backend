@@ -147,6 +147,8 @@ model Post {
   category_id String?
   category Category? @relation(fields: [category_id], references: [id])
 
+  cover_image String?
+
   media     PostMedia[]
   comments  Comment[]
   likes     Like[]

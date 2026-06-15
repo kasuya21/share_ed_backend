@@ -1,5 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import cloudinary from "../configs/cloudinary.config.js";
 
 export const getAllPosts = async (req, res) => {
   try {
@@ -146,9 +147,19 @@ export const createPost = async (req, res) => {
       });
     }
 
+    // Parse tags (could be JSON string from FormData)
+    let parsedTags = tags;
+    if (typeof tags === 'string') {
+      try {
+        parsedTags = JSON.parse(tags);
+      } catch (e) {
+        parsedTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
+    }
+
     const postTagConnects = [];
-    if (tags && Array.isArray(tags)) {
-      for (const tagName of tags) {
+    if (parsedTags && Array.isArray(parsedTags)) {
+      for (const tagName of parsedTags) {
         const tag = await prisma.tag.upsert({
           where: { tag_name: tagName },
           update: {},
@@ -156,6 +167,28 @@ export const createPost = async (req, res) => {
         });
         postTagConnects.push({ tag_id: tag.id });
       }
+    }
+
+    // Cover Image Upload to Cloudinary
+    let cover_image = null;
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "share-ed/posts/covers",
+            transformation: [
+              { width: 800, height: 600, crop: "fill" },
+              { quality: "auto", fetch_format: "auto" }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+      cover_image = uploadResult.secure_url;
     }
 
     const post = await prisma.post.create({
@@ -167,6 +200,7 @@ export const createPost = async (req, res) => {
         author_id,
         category_id: category_id || null,
         post_status: post_status || "DRAFT",
+        cover_image,
         tags: {
           create: postTagConnects
         }
@@ -257,14 +291,45 @@ export const updatePost = async (req, res) => {
     if (category_id !== undefined) updateData.category_id = category_id;
     if (post_status !== undefined) updateData.post_status = post_status;
 
-    if (tags !== undefined && Array.isArray(tags)) {
+    // Cover Image Upload on Update
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "share-ed/posts/covers",
+            transformation: [
+              { width: 800, height: 600, crop: "fill" },
+              { quality: "auto", fetch_format: "auto" }
+            ]
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+      updateData.cover_image = uploadResult.secure_url;
+    }
+
+    // Parse tags for update
+    let parsedTags = tags;
+    if (typeof tags === 'string' && tags.trim()) {
+      try {
+        parsedTags = JSON.parse(tags);
+      } catch (e) {
+        parsedTags = tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
+    }
+
+    if (parsedTags !== undefined && Array.isArray(parsedTags)) {
       // Delete existing post tags first
       await prisma.postTag.deleteMany({
         where: { post_id: id }
       });
 
       const postTagConnects = [];
-      for (const tagName of tags) {
+      for (const tagName of parsedTags) {
         const tag = await prisma.tag.upsert({
           where: { tag_name: tagName },
           update: {},
