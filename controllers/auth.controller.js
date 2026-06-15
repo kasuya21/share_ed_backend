@@ -19,6 +19,13 @@ export const verifyUser = async (req, res) => {
 
     let dbUser = await prisma.user.findUnique({
       where: { id: authUser.id },
+      include: {
+        purchases: {
+          include: {
+            item: true,
+          },
+        },
+      },
     });
 
     const avatarUrl = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || null;
@@ -31,14 +38,36 @@ export const verifyUser = async (req, res) => {
           username: authUser.email.split("@")[0],
           profile_image: avatarUrl,
         },
-      });
-    } else if (!dbUser.profile_image && avatarUrl) {
-      dbUser = await prisma.user.update({
-        where: { id: authUser.id },
-        data: {
-          profile_image: avatarUrl,
+        include: {
+          purchases: {
+            include: {
+              item: true,
+            },
+          },
         },
       });
+    } else {
+      let needsUpdate = false;
+      const updateData = {};
+
+      if (!dbUser.profile_image && avatarUrl) {
+        updateData.profile_image = avatarUrl;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        dbUser = await prisma.user.update({
+          where: { id: authUser.id },
+          data: updateData,
+          include: {
+            purchases: {
+              include: {
+                item: true,
+              },
+            },
+          },
+        });
+      }
     }
 
     res.json(dbUser);
