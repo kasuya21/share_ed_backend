@@ -12,6 +12,11 @@ export const reportPost = async (req, res) => {
       return res.status(400).json({ message: "post_id and reason are required" });
     }
 
+    const validReasons = ["เนื้อหาไม่เหมาะสม", "สแปม", "คัดลอกผลงานผู้อื่น", "เนื้อหามีความหยาบคาย"];
+    if (!validReasons.includes(reason)) {
+      return res.status(400).json({ success: false, message: "เหตุผลการรายงานไม่ถูกต้อง" });
+    }
+
     const post = await prisma.post.findUnique({
       where: { id: post_id },
       include: { _count: { select: { reports: true } } }

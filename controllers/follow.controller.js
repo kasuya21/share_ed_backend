@@ -1,5 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import { updateMilestoneProgress } from "../utils/milestone.helper.js";
 
 // ============================================================
 // POST /api/v1/follow/:userId
@@ -28,15 +29,16 @@ export const followUser = async (req, res) => {
     }
 
     // ตรวจสอบว่าติดตามอยู่แล้วหรือไม่
-    const existing = await prisma.follow.findUnique({
+    const existing = await prisma.follow.findFirst({
       where: {
-        follower_id_following_id: { follower_id, following_id }
+        follower_id: follower_id,
+        following_id: following_id
       }
     });
 
     if (existing) {
-      return res.status(409).json({
-        success: false,
+      return res.status(200).json({
+        success: true,
         message: "You are already following this user"
       });
     }
@@ -55,6 +57,10 @@ export const followUser = async (req, res) => {
       "NEW_FOLLOWER",
       `${followerUser.username} started following you`
     );
+
+    // 🏆 อัปเดต Milestone: FOLLOWERS_COUNT
+    const totalFollowers = await prisma.follow.count({ where: { following_id } });
+    await updateMilestoneProgress(following_id, "FOLLOWERS_COUNT", totalFollowers);
 
     res.status(201).json({
       success: true,
@@ -83,22 +89,24 @@ export const unfollowUser = async (req, res) => {
       });
     }
 
-    const existing = await prisma.follow.findUnique({
+    const existing = await prisma.follow.findFirst({
       where: {
-        follower_id_following_id: { follower_id, following_id }
+        follower_id: follower_id,
+        following_id: following_id
       }
     });
 
     if (!existing) {
-      return res.status(404).json({
-        success: false,
+      return res.status(200).json({
+        success: true,
         message: "You are not following this user"
       });
     }
 
-    await prisma.follow.delete({
+    await prisma.follow.deleteMany({
       where: {
-        follower_id_following_id: { follower_id, following_id }
+        follower_id: follower_id,
+        following_id: following_id
       }
     });
 

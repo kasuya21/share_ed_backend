@@ -28,7 +28,7 @@ export const toggleBookmark = async (req, res) => {
       const post = await prisma.post.findUnique({ where: { id: postId }, select: { title: true } });
       await createNotification(userId, "BOOKMARK_REMOVED", `You removed "${post?.title}" from your bookmarks`);
 
-      return res.status(200).json({ success: true, message: "Removed bookmark successfully", isBookmarked: false });
+      return res.status(200).json({ success: true, message: "การยกเลิกสำเร็จ", isBookmarked: false });
     } else {
       // Add bookmark
       await prisma.bookmark.create({
