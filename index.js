@@ -3,10 +3,11 @@ import cors from "cors";
 import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./configs/swagger.js";
+import { initCronJobs } from "./utils/cron.js";
+import { seedMilestonesAndRewards } from "./utils/milestone.helper.js";
 
 import authRoutes from "./routers/auth.router.js";
-import shopItemRoutes from "./routers/shopItem.router.js";
-import questRoutes from "./routers/quest.router.js";
+import milestoneRoutes from "./routers/milestone.router.js";
 
 import commentRoutes from "./routers/comment.router.js";
 import postRoutes from "./routers/post.router.js";
@@ -33,8 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/shop-items", shopItemRoutes);
-app.use("/api/v1/quest", questRoutes);
+app.use("/api/v1/milestones", milestoneRoutes);
 
 app.use("/api/v1/comment", commentRoutes);
 app.use("/api/v1/posts", postRoutes);
@@ -156,4 +156,6 @@ app.get("/", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  initCronJobs();
+  seedMilestonesAndRewards();
 });
