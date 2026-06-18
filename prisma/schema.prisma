@@ -52,24 +52,20 @@ enum NotificationTypeCode {
   POST_RESTORED
   POST_REMOVED
   POST_REPORTED
-  // Quest
+  // Quest / Milestone
   QUEST_COMPLETED
+  // Account management
+  ACCOUNT_BANNED
+  ACCOUNT_UNBANNED
 }
 
 enum PostStatus {
   DRAFT
-  PUBLISHED
-  ARCHIVED
+  ACTIVE
+  DELETED
   UNACTIVED
 }
 
-enum QuestType {
-  CREATE_POST
-  RECEIVE_LIKE
-  CREATE_COMMENT
-  LOGIN
-  FOLLOW_USER
-}
 
 //////////////////////////////////////////////////////
 // USER
@@ -88,14 +84,18 @@ model User {
   status UserStatus @default(ACTIVE)
 
   education_level EducationLevel?
+  age             Int?
+  social_links    Json?
+  wallpaper       String?
+  profile_banner  String?
 
-  coin_balance Int @default(0)
+  is_onboarded Boolean @default(false)
 
   current_theme_id String?
   current_frame_id String?
 
-  current_theme ShopItem? @relation("UserTheme", fields: [current_theme_id], references: [id])
-  current_frame ShopItem? @relation("UserFrame", fields: [current_frame_id], references: [id])
+  current_theme RewardItem? @relation("UserTheme", fields: [current_theme_id], references: [id])
+  current_frame RewardItem? @relation("UserFrame", fields: [current_frame_id], references: [id])
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -110,8 +110,8 @@ model User {
 
   notifications Notification[]
 
-  purchases   Purchase[]
-  user_quests UserQuest[]
+  unlocked_items UserUnlockedItem[]
+  user_milestones UserMilestone[]
   views       PostView[]
   reports     Report[]
 
@@ -340,16 +340,14 @@ model Notification {
 }
 
 //////////////////////////////////////////////////////
-// SHOP
+// REWARDS & COSMETICS
 //////////////////////////////////////////////////////
 
-model ShopItem {
+model RewardItem {
   id String @id @map("item_id")
 
   item_name String
   item_type ItemType
-
-  price Int
 
   image_url String?
 
@@ -357,67 +355,71 @@ model ShopItem {
 
   is_active Boolean @default(true)
 
-  purchases Purchase[]
+  unlocked_by UserUnlockedItem[]
+  milestones  Milestone[]
 
   theme_users User[] @relation("UserTheme")
   frame_users User[] @relation("UserFrame")
 
-  @@map("shop_items")
+  @@map("reward_items")
 }
 
-model Purchase {
-  id String @id @default(uuid()) @map("purchase_id")
+model UserUnlockedItem {
+  id String @id @default(uuid())
 
   user_id String
   item_id String
 
   user User @relation(fields: [user_id], references: [id])
-  item ShopItem @relation(fields: [item_id], references: [id])
+  item RewardItem @relation(fields: [item_id], references: [id])
 
-  purchased_at DateTime @default(now())
+  unlocked_at DateTime @default(now())
 
   @@unique([user_id, item_id])
-  @@map("purchases")
+  @@map("user_unlocked_items")
 }
 
 //////////////////////////////////////////////////////
-// QUEST
+// MILESTONES
 //////////////////////////////////////////////////////
 
-model Quest {
-  id String @id @default(uuid()) @map("quest_id")
+model Milestone {
+  id String @id @default(uuid())
 
-  quest_name String
-
-  quest_type QuestType
+  title String
+  description String
 
   target_value Int
-  reward_coin Int
+  milestone_type String
 
-  is_daily Boolean @default(false)
+  reward_item_id String?
+  reward_item RewardItem? @relation(fields: [reward_item_id], references: [id])
 
-  user_quests UserQuest[]
+  user_milestones UserMilestone[]
 
-  @@map("quests")
+  @@map("milestones")
 }
 
-model UserQuest {
-  id String @id @default(uuid()) @map("uq_id")
+model UserMilestone {
+  id String @id @default(uuid())
 
   user_id String
-  quest_id String
+  milestone_id String
 
   current_progress Int @default(0)
+  is_completed Boolean @default(false)
 
   completed_at DateTime?
+  claimed_at DateTime?
 
   user User @relation(fields: [user_id], references: [id])
-  quest Quest @relation(fields: [quest_id], references: [id])
+  milestone Milestone @relation(fields: [milestone_id], references: [id])
 
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  @@unique([user_id, quest_id])
-  @@map("user_quests")
+  @@unique([user_id, milestone_id])
+  @@map("user_milestones")
 }
 
 //////////////////////////////////////////////////////
