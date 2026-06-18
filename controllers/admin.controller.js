@@ -12,7 +12,6 @@ export const getAllUsers = async (req, res) => {
         profile_image: true,
         role: true,
         status: true,
-        coin_balance: true,
         created_at: true,
         _count: {
           select: {
