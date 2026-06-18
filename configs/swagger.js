@@ -46,7 +46,7 @@ export const swaggerDocument = {
           title: { type: "string" },
           summary: { type: "string" },
           content: { type: "string" },
-          post_status: { type: "string", enum: ["DRAFT", "PUBLISHED", "ARCHIVED", "UNACTIVED"] },
+          post_status: { type: "string", enum: ["DRAFT", "ACTIVE", "DELETED", "UNACTIVED"] },
           view_count: { type: "integer" },
           education_level: { type: "string", enum: ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"] },
           author_id: { type: "string" },
@@ -229,7 +229,7 @@ export const swaggerDocument = {
                   summary: { type: "string" },
                   content: { type: "string" },
                   education_level: { type: "string", enum: ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"] },
-                  post_status: { type: "string", enum: ["DRAFT", "PUBLISHED"], default: "DRAFT" },
+                  post_status: { type: "string", enum: ["DRAFT", "ACTIVE"], default: "DRAFT" },
                   category_id: { type: "string", format: "uuid", nullable: true },
                 },
               },
@@ -366,7 +366,7 @@ export const swaggerDocument = {
                 type: "object",
                 properties: {
                   title: { type: "string" },
-                  post_status: { type: "string", enum: ["DRAFT", "PUBLISHED", "ARCHIVED"] },
+                  post_status: { type: "string", enum: ["DRAFT", "ACTIVE", "DELETED"] },
                 },
               },
             },
@@ -1068,6 +1068,69 @@ export const swaggerDocument = {
             },
           },
           400: { description: "Invalid role." },
+          401: { description: "Unauthorized." },
+          403: { description: "Forbidden." },
+          404: { description: "User not found." },
+          500: { description: "Server error." },
+        },
+      },
+    },
+    "/admin/users/{id}/ban": {
+      patch: {
+        summary: "Ban User",
+        description: "Ban a user account by setting status to BANNED. Cannot ban an ADMIN account. Role required: ADMIN.",
+        tags: ["⚙️ Admin"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            description: "User ID to ban",
+            schema: { type: "string" },
+          },
+        ],
+        requestBody: {
+          required: false,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  reason: { type: "string", description: "Optional reason for the ban" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: "User banned successfully." },
+          400: { description: "User is already banned or cannot ban admin." },
+          401: { description: "Unauthorized." },
+          403: { description: "Forbidden." },
+          404: { description: "User not found." },
+          500: { description: "Server error." },
+        },
+      },
+    },
+    "/admin/users/{id}/unban": {
+      patch: {
+        summary: "Unban User",
+        description: "Restore a banned user account to ACTIVE status. Role required: ADMIN.",
+        tags: ["⚙️ Admin"],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          {
+            name: "id",
+            in: "path",
+            required: true,
+            description: "User ID to unban",
+            schema: { type: "string" },
+          },
+        ],
+        responses: {
+          200: { description: "User unbanned successfully." },
+          400: { description: "User is not currently banned." },
           401: { description: "Unauthorized." },
           403: { description: "Forbidden." },
           404: { description: "User not found." },

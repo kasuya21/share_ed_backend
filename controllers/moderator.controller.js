@@ -41,8 +41,8 @@ export const actionOnPost = async (req, res) => {
     const { post_id } = req.params;
     const { action } = req.body;
 
-    if (!action || !["RESTORE", "SOFT_DELETE"].includes(action)) {
-      return res.status(400).json({ message: "Invalid action. Use RESTORE or SOFT_DELETE" });
+    if (!action || !["RESTORE", "SOFT_DELETE", "SUSPEND"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action. Use RESTORE, SOFT_DELETE, or SUSPEND" });
     }
 
     const post = await prisma.post.findUnique({ where: { id: post_id } });
@@ -54,7 +54,7 @@ export const actionOnPost = async (req, res) => {
     if (action === "RESTORE") {
       await prisma.$transaction([
         prisma.report.deleteMany({ where: { post_id } }),
-        prisma.post.update({ where: { id: post_id }, data: { post_status: "PUBLISHED" } })
+        prisma.post.update({ where: { id: post_id }, data: { post_status: "ACTIVE" } })
       ]);
 
       // 🔔 แจ้งเจ้าของโพสต์ว่าได้รับการคืนสถานะ
@@ -66,7 +66,7 @@ export const actionOnPost = async (req, res) => {
 
       return res.status(200).json({ message: "Post restored successfully" });
     } else if (action === "SOFT_DELETE") {
-      await prisma.post.update({ where: { id: post_id }, data: { post_status: "ARCHIVED" } });
+      await prisma.post.update({ where: { id: post_id }, data: { post_status: "DELETED" } });
 
       // 🔔 แจ้งเจ้าของโพสต์ว่าถูกลบออก
       await createNotification(
@@ -76,6 +76,17 @@ export const actionOnPost = async (req, res) => {
       );
 
       return res.status(200).json({ message: "Post soft deleted successfully" });
+    } else if (action === "SUSPEND") {
+      await prisma.post.update({ where: { id: post_id }, data: { post_status: "UNACTIVED" } });
+
+      // 🔔 แจ้งเจ้าของโพสต์ว่าถูกระงับ
+      await createNotification(
+        post.author_id,
+        "POST_SUSPENDED",
+        `Your post "${post.title}" has been suspended after review by a moderator`
+      );
+
+      return res.status(200).json({ message: "Post suspended successfully" });
     }
 
   } catch (error) {

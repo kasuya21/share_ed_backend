@@ -6,8 +6,9 @@ export const createComment = async (req, res) => {
     const { content, post_id } = req.body;
     const user_id = req.user.id;
 
-    if (!content || !post_id) {
-      return res.status(400).json({ message: "Missing required fields" });
+    // Check if empty or whitespace-only
+    if (!content || !content.trim() || !post_id) {
+      return res.status(400).json({ success: false, message: "กรุณากรอกความคิดเห็น" });
     }
 
     const comment = await prisma.comment.create({
@@ -27,7 +28,11 @@ export const createComment = async (req, res) => {
       },
     });
 
-    res.status(201).json(comment);
+    res.status(201).json({
+      success: true,
+      message: "ส่งความคิดเห็นสำเร็จ",
+      data: comment
+    });
 
     // 🔔 แจ้งเจ้าของโพสต์ว่ามีคนเข้ามา comment (ไม่แจ้งตัวเอง)
     const post = await prisma.post.findUnique({

@@ -1,4 +1,5 @@
 import { supabase } from "../configs/supabase.config.js";
+import { prisma } from "../configs/prisma.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
@@ -17,6 +18,18 @@ export const authMiddleware = async (req, res, next) => {
     if (error || !data.user) {
       return res.status(401).json({
         message: "Invalid or expired token"
+      });
+    }
+
+    // Check if user is BANNED or SUSPENDED in database
+    const dbUser = await prisma.user.findUnique({
+      where: { id: data.user.id },
+      select: { status: true }
+    });
+
+    if (dbUser && (dbUser.status === "BANNED" || dbUser.status === "SUSPENDED")) {
+      return res.status(403).json({
+        message: "บัญชีของคุณถูกระงับการใช้งาน"
       });
     }
 
