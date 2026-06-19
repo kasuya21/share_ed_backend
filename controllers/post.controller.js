@@ -27,7 +27,7 @@ async function handleMediaFiles(files, postId) {
     const uploadOptions = isPdf
       ? { 
           folder: `share-ed/posts/${postId}/pdfs`, 
-          resource_type: "auto",
+          resource_type: "raw",
           public_id: file.originalname.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_')
         }
       : {
