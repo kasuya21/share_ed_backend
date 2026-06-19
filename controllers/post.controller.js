@@ -27,8 +27,7 @@ async function handleMediaFiles(files, postId) {
     const uploadOptions = isPdf
       ? { 
           folder: `share-ed/posts/${postId}/pdfs`, 
-          resource_type: "raw",
-          public_id: file.originalname
+          resource_type: "auto"
         }
       : {
           folder: `share-ed/posts/${postId}/media`,
@@ -273,10 +272,10 @@ export const createPost = async (req, res) => {
     // 1. ตรวจสอบชนิดไฟล์หน้าปกและไฟล์แนบ
     const coverFiles = req.files?.cover_image;
     if (coverFiles && coverFiles.length > 0) {
-      if (!ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
+      if (coverFiles[0].mimetype === "application/pdf" || !ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
         return res.status(400).json({
           success: false,
-          message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG, PDF)"
+          message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG)"
         });
       }
     }
@@ -459,10 +458,10 @@ export const updatePost = async (req, res) => {
     // 1. ตรวจสอบไฟล์มัลติมีเดียชนิดต่างๆ
     const coverFiles = req.files?.cover_image;
     if (coverFiles && coverFiles.length > 0) {
-      if (!ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
+      if (coverFiles[0].mimetype === "application/pdf" || !ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
         return res.status(400).json({
           success: false,
-          message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG, PDF)"
+          message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG)"
         });
       }
     }
