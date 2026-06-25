@@ -361,6 +361,9 @@ model RewardItem {
   theme_users User[] @relation("UserTheme")
   frame_users User[] @relation("UserFrame")
 
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
+
   @@map("reward_items")
 }
 
@@ -396,6 +399,9 @@ model Milestone {
   reward_item RewardItem? @relation(fields: [reward_item_id], references: [id])
 
   user_milestones UserMilestone[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now()) @updatedAt
 
   @@map("milestones")
 }
