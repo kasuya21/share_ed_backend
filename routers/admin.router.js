@@ -7,6 +7,15 @@ import {
   banUser,
   unbanUser
 } from "../controllers/admin.controller.js";
+import {
+  getAllRewards,
+  createReward,
+  updateReward,
+  toggleRewardStatus,
+  deleteReward,
+  mapRewardToMilestone
+} from "../controllers/admin.reward.controller.js";
+import { upload } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
 
@@ -22,5 +31,15 @@ router.patch("/users/:id/role", changeUserRole);
 // Ban / Unban user
 router.patch("/users/:id/ban", banUser);
 router.patch("/users/:id/unban", unbanUser);
+
+// Reward Management
+router.get("/rewards", getAllRewards);
+router.post("/rewards", upload.single("image"), createReward);
+router.put("/rewards/:id", upload.single("image"), updateReward);
+router.patch("/rewards/:id/status", toggleRewardStatus);
+router.delete("/rewards/:id", deleteReward);
+
+// Milestone mapping
+router.patch("/milestones/:id/reward", mapRewardToMilestone);
 
 export default router;
