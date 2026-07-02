@@ -7,12 +7,12 @@ export const swaggerDocument = {
   },
   "servers": [
     {
-      "url": "http://localhost:3000/api/v1",
-      "description": "🖥️ Local Development Server"
-    },
-    {
       "url": "https://share-ed-backend-6jer.onrender.com/api/v1",
       "description": "🚀 Production Server (Render)"
+    },
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "🖥️ Local Development Server"
     }
   ],
   "components": {
@@ -2338,80 +2338,6 @@ export const swaggerDocument = {
           },
           "400": {
             "description": "Milestone not completed or already claimed."
-          }
-        }
-      }
-    },
-    "/auth/register": {
-      "post": {
-        "summary": "Register User",
-        "tags": [
-          "🔐 Auth"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "email",
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "User registered"
-          }
-        }
-      }
-    },
-    "/auth/login": {
-      "post": {
-        "summary": "Login User",
-        "tags": [
-          "🔐 Auth"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "email",
-                  "password"
-                ],
-                "properties": {
-                  "email": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "User logged in"
           }
         }
       }
