@@ -7,8 +7,12 @@ export const swaggerDocument = {
   },
   "servers": [
     {
+      "url": "http://localhost:3000/api/v1",
+      "description": "🖥️ Local Development Server"
+    },
+    {
       "url": "https://share-ed-backend-6jer.onrender.com/api/v1",
-      "description": "deploy server"
+      "description": "🚀 Production Server (Render)"
     }
   ],
   "components": {
@@ -389,6 +393,184 @@ export const swaggerDocument = {
     }
   },
   "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register new member",
+        "description": "สมัครสมาชิกใหม่ด้วย Email + Password. ต้องส่งข้อมูลครบทุก field ที่กำหนด",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password",
+                  "confirmPassword",
+                  "nickname",
+                  "education_level",
+                  "age"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "password123"
+                  },
+                  "confirmPassword": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "password123",
+                    "description": "ต้องตรงกับ password"
+                  },
+                  "nickname": {
+                    "type": "string",
+                    "example": "myusername",
+                    "description": "ชื่อที่แสดงในระบบ (ไม่ใช่ username)"
+                  },
+                  "education_level": {
+                    "type": "string",
+                    "enum": [
+                      "MIDDLE_SCHOOL",
+                      "HIGH_SCHOOL",
+                      "UNIVERSITY"
+                    ],
+                    "example": "HIGH_SCHOOL"
+                  },
+                  "age": {
+                    "type": "integer",
+                    "example": 18,
+                    "description": "อายุ (ต้องส่งเสมอแม้ค่าจะเป็น 0)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "สมัครสมาชิกสำเร็จ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "สมัครสมาชิกสำเร็จ" },
+                    "data": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ข้อมูลไม่ครบ / รหัสผ่านไม่ตรง / อีเมลหรือ nickname ซ้ำ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": false },
+                    "message": { "type": "string", "example": "กรุณาระบุข้อมูลให้ครบถ้วน" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login with Email & Password",
+        "description": "เข้าสู่ระบบด้วยอีเมลและรหัสผ่าน จะได้รับ session token สำหรับใช้เป็น Bearer token",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": "password123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "เข้าสู่ระบบสำเร็จ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "ยินดีต้อนรับเข้าสู่ระบบ" },
+                    "session": {
+                      "type": "object",
+                      "description": "Supabase session — ใช้ access_token เป็น Bearer token",
+                      "properties": {
+                        "access_token": { "type": "string" },
+                        "token_type": { "type": "string", "example": "bearer" },
+                        "expires_in": { "type": "integer" }
+                      }
+                    },
+                    "user": { "$ref": "#/components/schemas/User" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": false },
+                    "message": { "type": "string", "example": "อีเมลหรือรหัสผ่านไม่ถูกต้อง" }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "บัญชีถูกระงับ (BANNED / SUSPENDED)"
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
     "/auth/me": {
       "get": {
         "summary": "Verify & Sync User",
@@ -421,6 +603,7 @@ export const swaggerDocument = {
         }
       }
     },
+
     "/posts": {
       "get": {
         "summary": "Get All Posts (Search & Filter)",

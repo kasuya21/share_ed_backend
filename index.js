@@ -26,12 +26,32 @@ import adminRoutes from "./routers/admin.router.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:4173",
+    "https://share-ed-backend-6jer.onrender.com",
+  ],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve API Documentation
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// Serve API Documentation (Swagger UI)
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  swaggerOptions: {
+    persistAuthorization: true,   // จำ Bearer token ไว้หลัง refresh
+    displayRequestDuration: true, // แสดงเวลา response
+  },
+}));
+
+// Serve raw OpenAPI JSON → Postman import ได้จาก URL นี้
+app.get("/api-docs.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerDocument);
+});
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/milestones", milestoneRoutes);
