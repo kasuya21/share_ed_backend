@@ -7,10 +7,10 @@ import { prisma } from "../configs/prisma.js";
 // ============================================================
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, confirmPassword, nickname, education_level, age } = req.body;
+    const { email, password, confirmPassword, username, education_level, age } = req.body;
 
     // 1. ตรวจสอบข้อมูลบังคับกรอก (Mandatory Fields)
-    if (!email || !password || !confirmPassword || !nickname || !education_level || age === undefined) {
+    if (!email || !password || !confirmPassword || !username || !education_level || age === undefined) {
       return res.status(400).json({ 
         success: false, 
         message: "กรุณาระบุข้อมูลให้ครบถ้วน" 
@@ -32,7 +32,7 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // 3. ตรวจสอบข้อมูลซ้ำในระบบ (Email และ Nickname)
+    // 3. ตรวจสอบข้อมูลซ้ำในระบบ (Email และ Username)
     const existingEmail = await prisma.user.findUnique({
       where: { email }
     });
@@ -43,13 +43,13 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    const existingNickname = await prisma.user.findUnique({
-      where: { username: nickname }
+    const existingUsername = await prisma.user.findUnique({
+      where: { username }
     });
-    if (existingNickname) {
+    if (existingUsername) {
       return res.status(400).json({ 
         success: false, 
-        message: "ชื่อเล่นนี้ถูกใช้งานแล้ว" 
+        message: "ชื่อผู้ใช้นี้ถูกใช้งานแล้ว" 
       });
     }
 
@@ -59,7 +59,7 @@ export const registerUser = async (req, res) => {
       password,
       options: {
         data: {
-          nickname
+          username
         }
       }
     });
@@ -78,7 +78,7 @@ export const registerUser = async (req, res) => {
       data: {
         id: authUser.id,
         email,
-        username: nickname,
+        username,
         education_level,
         age: parseInt(age, 10),
         role: "MEMBER",

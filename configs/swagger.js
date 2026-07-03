@@ -410,7 +410,7 @@ export const swaggerDocument = {
                   "email",
                   "password",
                   "confirmPassword",
-                  "nickname",
+                  "username",
                   "education_level",
                   "age"
                 ],
@@ -431,10 +431,10 @@ export const swaggerDocument = {
                     "example": "password123",
                     "description": "ต้องตรงกับ password"
                   },
-                  "nickname": {
+                  "username": {
                     "type": "string",
                     "example": "myusername",
-                    "description": "ชื่อที่แสดงในระบบ (ไม่ใช่ username)"
+                    "description": "ชื่อผู้ใช้งานในระบบ"
                   },
                   "education_level": {
                     "type": "string",
@@ -684,24 +684,26 @@ export const swaggerDocument = {
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
                   "title",
-                  "summary",
                   "content",
                   "education_level"
                 ],
                 "properties": {
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "หัวข้อโพสต์"
                   },
                   "summary": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "สรุปโพสต์ (ถ้ามี)"
                   },
                   "content": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "เนื้อหาโพสต์"
                   },
                   "education_level": {
                     "type": "string",
@@ -723,6 +725,24 @@ export const swaggerDocument = {
                     "type": "string",
                     "format": "uuid",
                     "nullable": true
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "แท็กของโพสต์ (สามารถส่งเป็น JSON string array หรือ comma-separated string เช่น 'tag1, tag2')",
+                    "example": "[\"คณิตศาสตร์\", \"สอบเข้า\"]"
+                  },
+                  "cover_image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "รูปภาพหน้าปก (ไฟล์เดียว)"
+                  },
+                  "media_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "ไฟล์แนบ (รูปภาพหรือ PDF, อัปโหลดได้สูงสุด 15 ไฟล์)"
                   }
                 }
               }
@@ -906,12 +926,29 @@ export const swaggerDocument = {
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
                   "title": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "หัวข้อโพสต์"
+                  },
+                  "summary": {
+                    "type": "string",
+                    "description": "สรุปโพสต์ (ถ้ามี)"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "เนื้อหาโพสต์"
+                  },
+                  "education_level": {
+                    "type": "string",
+                    "enum": [
+                      "MIDDLE_SCHOOL",
+                      "HIGH_SCHOOL",
+                      "UNIVERSITY"
+                    ]
                   },
                   "post_status": {
                     "type": "string",
@@ -920,6 +957,31 @@ export const swaggerDocument = {
                       "ACTIVE",
                       "DELETED"
                     ]
+                  },
+                  "category_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tags": {
+                    "type": "string",
+                    "description": "แท็กของโพสต์ (JSON string array หรือ comma-separated)"
+                  },
+                  "remove_media_ids": {
+                    "type": "string",
+                    "description": "รายการ ID ของไฟล์แนบที่ต้องการลบ (JSON string array หรือ comma-separated)"
+                  },
+                  "cover_image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "รูปภาพหน้าปกใหม่ (ถ้าต้องการเปลี่ยน)"
+                  },
+                  "media_files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "ไฟล์แนบเพิ่มเติม"
                   }
                 }
               }
