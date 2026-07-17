@@ -33,6 +33,8 @@ app.use(cors({
     "http://localhost:5174",
     "http://localhost:4173",
     "https://share-ed-backend-6jer.onrender.com",
+    "https://share-ed-frontend-gamma.vercel.app",
+    "https://share-ed-frontend-iota.vercel.app",
   ],
   credentials: true,
 }));
