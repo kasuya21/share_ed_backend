@@ -77,18 +77,6 @@ export const swaggerDocument = {
             "type": "integer",
             "nullable": true
           },
-          "social_links": {
-            "type": "object",
-            "nullable": true
-          },
-          "wallpaper": {
-            "type": "string",
-            "nullable": true
-          },
-          "profile_banner": {
-            "type": "string",
-            "nullable": true
-          },
           "is_onboarded": {
             "type": "boolean",
             "default": false
@@ -463,9 +451,17 @@ export const swaggerDocument = {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean", "example": true },
-                    "message": { "type": "string", "example": "สมัครสมาชิกสำเร็จ" },
-                    "data": { "$ref": "#/components/schemas/User" }
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "สมัครสมาชิกสำเร็จ"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/User"
+                    }
                   }
                 }
               }
@@ -478,8 +474,14 @@ export const swaggerDocument = {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean", "example": false },
-                    "message": { "type": "string", "example": "กรุณาระบุข้อมูลให้ครบถ้วน" }
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "กรุณาระบุข้อมูลให้ครบถ้วน"
+                    }
                   }
                 }
               }
@@ -531,18 +533,33 @@ export const swaggerDocument = {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean", "example": true },
-                    "message": { "type": "string", "example": "ยินดีต้อนรับเข้าสู่ระบบ" },
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "ยินดีต้อนรับเข้าสู่ระบบ"
+                    },
                     "session": {
                       "type": "object",
                       "description": "Supabase session — ใช้ access_token เป็น Bearer token",
                       "properties": {
-                        "access_token": { "type": "string" },
-                        "token_type": { "type": "string", "example": "bearer" },
-                        "expires_in": { "type": "integer" }
+                        "access_token": {
+                          "type": "string"
+                        },
+                        "token_type": {
+                          "type": "string",
+                          "example": "bearer"
+                        },
+                        "expires_in": {
+                          "type": "integer"
+                        }
                       }
                     },
-                    "user": { "$ref": "#/components/schemas/User" }
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
                   }
                 }
               }
@@ -555,8 +572,14 @@ export const swaggerDocument = {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": { "type": "boolean", "example": false },
-                    "message": { "type": "string", "example": "อีเมลหรือรหัสผ่านไม่ถูกต้อง" }
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+                    }
                   }
                 }
               }
@@ -603,7 +626,6 @@ export const swaggerDocument = {
         }
       }
     },
-
     "/posts": {
       "get": {
         "summary": "Get All Posts (Search & Filter)",
@@ -1959,10 +1981,9 @@ export const swaggerDocument = {
     },
     "/admin/users": {
       "get": {
-        "summary": "Get All Users",
-        "description": "Retrieve all registered users. Role required: ADMIN.",
+        "summary": "Get all users (Admin)",
         "tags": [
-          "⚙️ Admin"
+          "👑 Admin"
         ],
         "security": [
           {
@@ -1971,36 +1992,16 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "List of users.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/User"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Forbidden."
-          },
-          "500": {
-            "description": "Server error."
+            "description": "List of all users."
           }
         }
       }
     },
     "/admin/users/{id}/role": {
       "patch": {
-        "summary": "Change User Role",
-        "description": "Change user role to MEMBER, MODERATOR, or ADMIN. Role required: ADMIN.",
+        "summary": "Change user role",
         "tags": [
-          "⚙️ Admin"
+          "👑 Admin"
         ],
         "security": [
           {
@@ -2012,7 +2013,6 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "User ID",
             "schema": {
               "type": "string"
             }
@@ -2024,9 +2024,6 @@ export const swaggerDocument = {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "role"
-                ],
                 "properties": {
                   "role": {
                     "type": "string",
@@ -2043,39 +2040,16 @@ export const swaggerDocument = {
         },
         "responses": {
           "200": {
-            "description": "User role updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid role."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Forbidden."
-          },
-          "404": {
-            "description": "User not found."
-          },
-          "500": {
-            "description": "Server error."
+            "description": "Role updated."
           }
         }
       }
     },
     "/admin/users/{id}/ban": {
       "patch": {
-        "summary": "Ban User",
-        "description": "Ban a user account by setting status to BANNED. Cannot ban an ADMIN account. Role required: ADMIN.",
+        "summary": "Ban user",
         "tags": [
-          "⚙️ Admin"
+          "👑 Admin"
         ],
         "security": [
           {
@@ -2087,56 +2061,23 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "User ID to ban",
             "schema": {
               "type": "string"
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "reason": {
-                    "type": "string",
-                    "description": "Optional reason for the ban"
-                  }
-                }
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
-            "description": "User banned successfully."
-          },
-          "400": {
-            "description": "User is already banned or cannot ban admin."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Forbidden."
-          },
-          "404": {
-            "description": "User not found."
-          },
-          "500": {
-            "description": "Server error."
+            "description": "User banned."
           }
         }
       }
     },
     "/admin/users/{id}/unban": {
       "patch": {
-        "summary": "Unban User",
-        "description": "Restore a banned user account to ACTIVE status. Role required: ADMIN.",
+        "summary": "Unban user",
         "tags": [
-          "⚙️ Admin"
+          "👑 Admin"
         ],
         "security": [
           {
@@ -2148,7 +2089,6 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "User ID to unban",
             "schema": {
               "type": "string"
             }
@@ -2156,22 +2096,7 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "User unbanned successfully."
-          },
-          "400": {
-            "description": "User is not currently banned."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "403": {
-            "description": "Forbidden."
-          },
-          "404": {
-            "description": "User not found."
-          },
-          "500": {
-            "description": "Server error."
+            "description": "User unbanned."
           }
         }
       }
@@ -2344,8 +2269,8 @@ export const swaggerDocument = {
     },
     "/milestones": {
       "get": {
-        "summary": "Get Milestones",
-        "description": "Retrieve milestones and user progress.",
+        "summary": "Get All Milestones (with User Progress)",
+        "description": "ดึงข้อมูล Milestones ทั้งหมด พร้อมบอก progress ของ user ปัจจุบัน (ต้อง Login)",
         "tags": [
           "🏆 Milestones"
         ],
@@ -2356,17 +2281,13 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "List of milestones with user progress.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Milestone"
-                  }
-                }
-              }
-            }
+            "description": "List of milestones with user progress."
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
@@ -2374,7 +2295,7 @@ export const swaggerDocument = {
     "/milestones/{id}/claim": {
       "post": {
         "summary": "Claim Milestone Reward",
-        "description": "Claim the reward item for a completed milestone.",
+        "description": "กดรับรางวัลจาก Milestone ที่ทำสำเร็จแล้ว",
         "tags": [
           "🏆 Milestones"
         ],
@@ -2388,10 +2309,11 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
             "schema": {
-              "type": "string"
-            }
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "ID ของ Milestone"
           }
         ],
         "responses": {
@@ -2399,7 +2321,444 @@ export const swaggerDocument = {
             "description": "Reward claimed successfully."
           },
           "400": {
-            "description": "Milestone not completed or already claimed."
+            "description": "Milestone is not completed or already claimed."
+          },
+          "404": {
+            "description": "Milestone progress not found."
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/admin/rewards": {
+      "get": {
+        "summary": "Get all rewards (Admin)",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of rewards."
+          }
+        }
+      },
+      "post": {
+        "summary": "Create reward",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "item_name": {
+                    "type": "string"
+                  },
+                  "item_type": {
+                    "type": "string",
+                    "enum": [
+                      "THEME",
+                      "FRAME"
+                    ]
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "metadata": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reward created."
+          }
+        }
+      }
+    },
+    "/admin/rewards/{id}": {
+      "put": {
+        "summary": "Update reward",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "item_name": {
+                    "type": "string"
+                  },
+                  "item_type": {
+                    "type": "string",
+                    "enum": [
+                      "THEME",
+                      "FRAME"
+                    ]
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "metadata": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reward updated."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete reward",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reward deleted."
+          }
+        }
+      }
+    },
+    "/admin/rewards/{id}/status": {
+      "patch": {
+        "summary": "Toggle reward active status",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reward status toggled."
+          }
+        }
+      }
+    },
+    "/admin/milestones": {
+      "get": {
+        "summary": "Get all milestones (Admin)",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of milestones."
+          }
+        }
+      },
+      "post": {
+        "summary": "Create milestone",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "target_value": {
+                    "type": "integer"
+                  },
+                  "milestone_type": {
+                    "type": "string"
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Milestone created."
+          }
+        }
+      }
+    },
+    "/admin/milestones/{id}": {
+      "put": {
+        "summary": "Update milestone",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "target_value": {
+                    "type": "integer"
+                  },
+                  "milestone_type": {
+                    "type": "string"
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Milestone updated."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete milestone",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Milestone deleted."
+          }
+        }
+      }
+    },
+    "/admin/milestones/{id}/reward": {
+      "patch": {
+        "summary": "Map reward to milestone",
+        "tags": [
+          "👑 Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reward_id": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reward mapped to milestone."
+          }
+        }
+      }
+    },
+    "/users/onboard": {
+      "put": {
+        "summary": "Onboard User",
+        "description": "Onboard user for the first time by filling in nickname, occupation, location",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "type": "string"
+                  },
+                  "occupation": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User onboarded successfully."
+          },
+          "400": {
+            "description": "User is already onboarded."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/posts/stats": {
+      "get": {
+        "summary": "Get Platform Stats",
+        "description": "Retrieve general statistics for the platform.",
+        "tags": [
+          "📝 Posts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform statistics."
+          },
+          "500": {
+            "description": "Server error."
           }
         }
       }
