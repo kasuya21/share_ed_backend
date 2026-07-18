@@ -24,6 +24,8 @@ const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
 // Social Links URL structure and protocol validation
 const validateSocialLinks = (links) => {
   if (!links || typeof links !== "object") return null;
+  const matchesDomain = (hostname, domain) =>
+    hostname === domain || hostname.endsWith(`.${domain}`);
 
   for (const [platform, url] of Object.entries(links)) {
     if (!url || url.trim() === "") continue; // Allow empty links
@@ -41,13 +43,13 @@ const validateSocialLinks = (links) => {
       return `ลิงก์ของ ${platform} ไม่ถูกต้อง`;
     }
 
-    if (platform === "instagram" && !hostname.endsWith("instagram.com")) {
+    if (platform === "instagram" && !matchesDomain(hostname, "instagram.com")) {
       return "ลิงก์ Instagram ไม่ถูกต้อง (ต้องมี instagram.com)";
     }
-    if (platform === "facebook" && !hostname.endsWith("facebook.com")) {
+    if (platform === "facebook" && !matchesDomain(hostname, "facebook.com")) {
       return "ลิงก์ Facebook ไม่ถูกต้อง (ต้องมี facebook.com)";
     }
-    if (platform === "youtube" && !hostname.endsWith("youtube.com")) {
+    if (platform === "youtube" && !matchesDomain(hostname, "youtube.com")) {
       return "ลิงก์ Youtube ไม่ถูกต้อง (ต้องมี youtube.com)";
     }
   }
