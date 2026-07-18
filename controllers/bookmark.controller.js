@@ -10,7 +10,7 @@ export const toggleBookmark = async (req, res) => {
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found" });
     }
-
+    //เช็คว่าเคยกดbookmarkไว้รึยัง
     const existingBookmark = await prisma.bookmark.findUnique({
       where: {
         user_id_post_id: {
@@ -48,7 +48,7 @@ export const toggleBookmark = async (req, res) => {
 export const getBookmarks = async (req, res) => {
   try {
     const userId = req.user.id;
-
+   // get all bookmark by user id
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
       include: {

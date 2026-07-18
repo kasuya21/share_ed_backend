@@ -15,6 +15,12 @@ import {
   deleteReward,
   mapRewardToMilestone
 } from "../controllers/admin.reward.controller.js";
+import {
+  getAllMilestones,
+  createMilestone,
+  updateMilestone,
+  deleteMilestone
+} from "../controllers/admin.milestone.controller.js";
 import { upload } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
@@ -41,5 +47,11 @@ router.delete("/rewards/:id", deleteReward);
 
 // Milestone mapping
 router.patch("/milestones/:id/reward", mapRewardToMilestone);
+
+// Milestone Management
+router.get("/milestones", getAllMilestones);
+router.post("/milestones", upload.single("image"), createMilestone);
+router.put("/milestones/:id", upload.single("image"), updateMilestone);
+router.delete("/milestones/:id", deleteMilestone);
 
 export default router;
