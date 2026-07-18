@@ -34,14 +34,20 @@ const validateSocialLinks = (links) => {
     }
 
     // 2. Check platform domain matching
-    const urlLower = url.toLowerCase();
-    if (platform === "instagram" && !urlLower.includes("instagram.com")) {
+    let hostname;
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch {
+      return `ลิงก์ของ ${platform} ไม่ถูกต้อง`;
+    }
+
+    if (platform === "instagram" && !hostname.endsWith("instagram.com")) {
       return "ลิงก์ Instagram ไม่ถูกต้อง (ต้องมี instagram.com)";
     }
-    if (platform === "facebook" && !urlLower.includes("facebook.com")) {
+    if (platform === "facebook" && !hostname.endsWith("facebook.com")) {
       return "ลิงก์ Facebook ไม่ถูกต้อง (ต้องมี facebook.com)";
     }
-    if (platform === "youtube" && !urlLower.includes("youtube.com")) {
+    if (platform === "youtube" && !hostname.endsWith("youtube.com")) {
       return "ลิงก์ Youtube ไม่ถูกต้อง (ต้องมี youtube.com)";
     }
   }
