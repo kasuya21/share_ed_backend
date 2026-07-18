@@ -1,38 +1,26 @@
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
 
-// Cloudinary configures itself automatically if CLOUDINARY_URL is present in the .env file.
-
+// เก็บไฟล์ใน memory (buffer) แทนที่จะเขียนลง disk
+// แล้วค่อยส่งต่อให้ Cloudinary
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/") || file.mimetype === "video/mp4") {
+  const allowed = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+  ];
+  if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only images and mp4 videos are allowed."), false);
+    cb(new Error("Only JPEG, PNG, WEBP images and PDF files are allowed"), false);
   }
 };
 
 export const upload = multer({
   storage,
-  limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB max to support wallpaper videos
-  },
   fileFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
 });
-
-export const uploadToCloudinary = (fileBuffer, folder = "share-ed") => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "auto" },
-      (error, result) => {
-        if (error) {
-          console.error("Cloudinary upload error:", error);
-          return reject(error);
-        }
-        resolve(result);
-      }
-    );
-    uploadStream.end(fileBuffer);
-  });
-};

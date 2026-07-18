@@ -1,13 +1,14 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const createComment = async (req, res) => {
   try {
     const { content, post_id } = req.body;
     const user_id = req.user.id;
 
-    if (!content || !post_id) {
-      return res.status(400).json({ message: "Missing required fields" });
+    // Check if empty or whitespace-only
+    if (!content || !content.trim() || !post_id) {
+      return res.status(400).json({ success: false, message: "กรุณากรอกความคิดเห็น" });
     }
 
     const comment = await prisma.comment.create({
@@ -27,7 +28,28 @@ export const createComment = async (req, res) => {
       },
     });
 
-    res.status(201).json(comment);
+    res.status(201).json({
+      success: true,
+      message: "ส่งความคิดเห็นสำเร็จ",
+      data: comment
+    });
+
+    // 🔔 แจ้งเจ้าของโพสต์ว่ามีคนเข้ามา comment (ไม่แจ้งตัวเอง)
+    const post = await prisma.post.findUnique({
+      where: { id: post_id },
+      select: { author_id: true, title: true }
+    });
+    if (post && post.author_id !== user_id) {
+      const commenter = await prisma.user.findUnique({
+        where: { id: user_id },
+        select: { username: true }
+      });
+      await createNotification(
+        post.author_id,
+        "NEW_COMMENT",
+        `${commenter.username} commented on your post "${post.title}"`
+      );
+    }
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

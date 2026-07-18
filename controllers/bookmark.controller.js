@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 export const toggleBookmark = async (req, res) => {
   try {
@@ -9,7 +10,7 @@ export const toggleBookmark = async (req, res) => {
     if (!post) {
       return res.status(404).json({ success: false, message: "Post not found" });
     }
-
+    //เช็คว่าเคยกดbookmarkไว้รึยัง
     const existingBookmark = await prisma.bookmark.findUnique({
       where: {
         user_id_post_id: {
@@ -21,11 +22,13 @@ export const toggleBookmark = async (req, res) => {
 
     if (existingBookmark) {
       // Remove bookmark
-      await prisma.bookmark.delete({
-        where: { id: existingBookmark.id }
-      });
-      // TODO: Trigger notification for removed bookmark later (Phase 5)
-      return res.status(200).json({ success: true, message: "Removed bookmark successfully", isBookmarked: false });
+      await prisma.bookmark.delete({ where: { id: existingBookmark.id } });
+
+      // 🔔 แจ้งเจ้าของตัวเองว่าเอา Bookmark ออกแล้ว (per Requirement)
+      const post = await prisma.post.findUnique({ where: { id: postId }, select: { title: true } });
+      await createNotification(userId, "BOOKMARK_REMOVED", `You removed "${post?.title}" from your bookmarks`);
+
+      return res.status(200).json({ success: true, message: "การยกเลิกสำเร็จ", isBookmarked: false });
     } else {
       // Add bookmark
       await prisma.bookmark.create({
@@ -45,7 +48,7 @@ export const toggleBookmark = async (req, res) => {
 export const getBookmarks = async (req, res) => {
   try {
     const userId = req.user.id;
-
+   // get all bookmark by user id
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
       include: {

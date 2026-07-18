@@ -1,4 +1,5 @@
 import { prisma } from "../configs/prisma.js";
+import { createNotification } from "../utils/notification.helper.js";
 
 // ดึงรายชื่อผู้ใช้ทั้งหมดในระบบ
 export const getAllUsers = async (req, res) => {
@@ -11,7 +12,6 @@ export const getAllUsers = async (req, res) => {
         profile_image: true,
         role: true,
         status: true,
-        coin_balance: true,
         created_at: true,
         _count: {
           select: {
@@ -99,5 +99,76 @@ export const changeUserRole = async (req, res) => {
       success: false,
       message: "Failed to update user role"
     });
+  }
+};
+
+// แบนผู้ใช้ (เปลี่ยน status เป็น BANNED)
+export const banUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.role === "ADMIN") {
+      return res.status(400).json({ success: false, message: "Cannot ban an admin account" });
+    }
+
+    if (user.status === "BANNED") {
+      return res.status(400).json({ success: false, message: "User is already banned" });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { status: "BANNED" }
+    });
+
+    await createNotification(
+      id,
+      "ACCOUNT_BANNED",
+      reason || "Your account has been banned for violating community guidelines"
+    );
+
+    res.status(200).json({ success: true, message: "User banned successfully" });
+  } catch (error) {
+    console.error("Ban user error:", error);
+    res.status(500).json({ success: false, message: "Failed to ban user" });
+  }
+};
+
+// ยกเลิกการแบนผู้ใช้ (เปลี่ยน status กลับเป็น ACTIVE)
+export const unbanUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.status !== "BANNED") {
+      return res.status(400).json({ success: false, message: "User is not currently banned" });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { status: "ACTIVE" }
+    });
+
+    await createNotification(
+      id,
+      "ACCOUNT_UNBANNED",
+      "Your account ban has been lifted. Welcome back!"
+    );
+
+    res.status(200).json({ success: true, message: "User unbanned successfully" });
+  } catch (error) {
+    console.error("Unban user error:", error);
+    res.status(500).json({ success: false, message: "Failed to unban user" });
   }
 };
