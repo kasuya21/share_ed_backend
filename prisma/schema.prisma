@@ -89,7 +89,11 @@ model User {
   wallpaper       String?
   profile_banner  String?
 
-  is_onboarded Boolean @default(false)
+  is_onboarded    Boolean @default(false)
+
+  nickname        String?
+  location        String?
+  occupation      String?
 
   current_theme_id String?
   current_frame_id String?
@@ -323,7 +327,6 @@ model Notification {
   id String @id @default(uuid()) @map("notification_id")
 
   user_id String
-
   type NotificationTypeCode
 
   message String
