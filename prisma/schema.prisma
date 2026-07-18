@@ -64,6 +64,8 @@ enum PostStatus {
   ACTIVE
   DELETED
   UNACTIVED
+  ACTIVE
+  DELETED
 }
 
 
