@@ -31,17 +31,11 @@ async function main() {
   console.log('Seeding profile frames...');
 
   for (const frame of frames) {
-    const existingFrame = await prisma.reward_items.findUnique({ where: { item_id: frame.id } });
+    const existingFrame = await prisma.shopItem.findUnique({ where: { id: frame.id } });
     
     if (!existingFrame) {
-      await prisma.reward_items.create({
-        data: {
-          item_id: frame.id,
-          item_name: frame.item_name,
-          item_type: frame.item_type,
-          image_url: frame.image_url,
-          is_active: frame.is_active,
-        },
+      await prisma.shopItem.create({
+        data: frame,
       });
       console.log(`Created frame: ${frame.item_name}`);
     } else {
