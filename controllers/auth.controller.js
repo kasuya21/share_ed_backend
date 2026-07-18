@@ -31,7 +31,17 @@ export const verifyUser = async (req, res) => {
       });
     }
 
-    res.json(dbUser);
+    res.json({
+      ...dbUser,
+      avatar_url: dbUser.profile_image,
+      user_metadata: {
+        banner_url: dbUser.profile_banner,
+        wallpaper_url: dbUser.wallpaper,
+        facebook_url: dbUser.social_links?.facebook || null,
+        instagram_url: dbUser.social_links?.instagram || null,
+        discord_url: dbUser.social_links?.discord || null,
+      }
+    });
   } catch (error) {
     console.error(error);
 
