@@ -344,3 +344,58 @@ export const verifyUser = async (req, res) => {
     });
   }
 };
+
+// ============================================================
+// PUT /api/v1/auth/change-password
+// เปลี่ยนรหัสผ่าน (ใช้ Token ปัจจุบัน)
+// ============================================================
+export const changePassword = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (!token) {
+      return res.status(401).json({ success: false, message: "No token provided" });
+    }
+
+    const { newPassword, confirmNewPassword } = req.body;
+
+    if (!newPassword || !confirmNewPassword) {
+      return res.status(400).json({ success: false, message: "กรุณากรอกรหัสผ่านใหม่และการยืนยัน" });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร" });
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ success: false, message: "รหัสผ่านใหม่และการยืนยันรหัสผ่านไม่ตรงกัน" });
+    }
+
+    // สร้าง Client ชั่วคราวโดยแนบ Token ของ User ไปด้วย
+    const { createClient } = await import("@supabase/supabase-js");
+    const userSupabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      }
+    );
+
+    const { data, error } = await userSupabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message || "เปลี่ยนรหัสผ่านไม่สำเร็จ" });
+    }
+
+    return res.status(200).json({ success: true, message: "เปลี่ยนรหัสผ่านสำเร็จ" });
+
+  } catch (error) {
+    console.error("Change password error:", error);
+    return res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
+  }
+};

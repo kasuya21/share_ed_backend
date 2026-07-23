@@ -73,8 +73,16 @@ export const swaggerDocument = {
             ],
             "nullable": true
           },
-          "age": {
-            "type": "integer",
+          "nickname": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          },
+          "occupation": {
+            "type": "string",
             "nullable": true
           },
           "social_links": {
@@ -411,8 +419,7 @@ export const swaggerDocument = {
                   "password",
                   "confirmPassword",
                   "username",
-                  "education_level",
-                  "age"
+                  "education_level"
                 ],
                 "properties": {
                   "email": {
@@ -444,11 +451,6 @@ export const swaggerDocument = {
                       "UNIVERSITY"
                     ],
                     "example": "HIGH_SCHOOL"
-                  },
-                  "age": {
-                    "type": "integer",
-                    "example": 18,
-                    "description": "อายุ (ต้องส่งเสมอแม้ค่าจะเป็น 0)"
                   }
                 }
               }
@@ -599,6 +601,60 @@ export const swaggerDocument = {
           },
           "500": {
             "description": "Server error."
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "put": {
+        "summary": "Change User Password",
+        "description": "เปลี่ยนรหัสผ่านของผู้ใช้ด้วย Token ปัจจุบัน",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "newPassword",
+                  "confirmNewPassword"
+                ],
+                "properties": {
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "newpassword123"
+                  },
+                  "confirmNewPassword": {
+                    "type": "string",
+                    "minLength": 8,
+                    "example": "newpassword123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "เปลี่ยนรหัสผ่านสำเร็จ"
+          },
+          "400": {
+            "description": "ข้อมูลไม่ถูกต้อง (รหัสผ่านไม่ตรงกัน หรือสั้นเกินไป)"
+          },
+          "401": {
+            "description": "ไม่ได้ส่ง Token หรือ Token ไม่ถูกต้อง"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
@@ -2229,7 +2285,7 @@ export const swaggerDocument = {
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
@@ -2247,9 +2303,30 @@ export const swaggerDocument = {
                       "UNIVERSITY"
                     ]
                   },
+                  "nickname": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "occupation": {
+                    "type": "string"
+                  },
+                  "social_links": {
+                    "type": "string",
+                    "description": "JSON string of social links (e.g. {\"facebook\":\"url\"})"
+                  },
                   "profile_image": {
                     "type": "string",
-                    "format": "uri"
+                    "format": "binary"
+                  },
+                  "wallpaper": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "profile_banner": {
+                    "type": "string",
+                    "format": "binary"
                   }
                 }
               }
@@ -2259,6 +2336,161 @@ export const swaggerDocument = {
         "responses": {
           "200": {
             "description": "Profile updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Username already taken."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/users/profile/with-media": {
+      "put": {
+        "summary": "Update Profile with Media (Frontend Compatible)",
+        "description": "อัปเดตโปรไฟล์พร้อมรองรับการอัปโหลด Avatar, Banner และ Wallpaper ผ่าน multipart/form-data รวมถึงรับ Social Links (Facebook, Instagram, Discord) ใน Body",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "nickname": {
+                    "type": "string"
+                  },
+                  "bio": {
+                    "type": "string"
+                  },
+                  "education_level": {
+                    "type": "string",
+                    "enum": [
+                      "MIDDLE_SCHOOL",
+                      "HIGH_SCHOOL",
+                      "UNIVERSITY"
+                    ]
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "occupation": {
+                    "type": "string"
+                  },
+                  "facebook_url": {
+                    "type": "string"
+                  },
+                  "instagram_url": {
+                    "type": "string"
+                  },
+                  "discord_url": {
+                    "type": "string"
+                  },
+                  "avatar": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "banner": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "wallpaper": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Username already taken."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/users/onboard": {
+      "put": {
+        "summary": "Onboard User Profile",
+        "description": "กรอกข้อมูลโปรไฟล์ครั้งแรกหลังจากสมัครสมาชิก",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "bio": {
+                    "type": "string"
+                  },
+                  "education_level": {
+                    "type": "string",
+                    "enum": [
+                      "MIDDLE_SCHOOL",
+                      "HIGH_SCHOOL",
+                      "UNIVERSITY"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile onboarded successfully.",
             "content": {
               "application/json": {
                 "schema": {
