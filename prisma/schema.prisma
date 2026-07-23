@@ -90,11 +90,11 @@ model User {
   wallpaper       String?
   profile_banner  String?
 
-  nickname     String?
-  location     String?
-  occupation   String?
+  is_onboarded    Boolean @default(false)
 
-  is_onboarded Boolean @default(false)
+  nickname        String?
+  location        String?
+  occupation      String?
 
   current_theme_id String?
   current_frame_id String?
