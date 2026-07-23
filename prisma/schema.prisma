@@ -86,7 +86,6 @@ model User {
   status UserStatus @default(ACTIVE)
 
   education_level EducationLevel?
-  age             Int?
   social_links    Json?
   wallpaper       String?
   profile_banner  String?
@@ -94,7 +93,6 @@ model User {
   nickname     String?
   location     String?
   occupation   String?
-  coin_balance Int @default(0)
 
   is_onboarded Boolean @default(false)
 
