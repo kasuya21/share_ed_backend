@@ -1,25 +1,6 @@
 import { prisma } from "../configs/prisma.js";
-import cloudinary from "../configs/cloudinary.config.js";
 import { supabase } from "../configs/supabase.config.js";
-
-// Helper for Cloudinary Uploads
-const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        transformation,
-        quality: "auto",
-        fetch_format: "auto"
-      },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }
-    );
-    stream.end(fileBuffer);
-  });
-};
+import { uploadToCloudinary } from "../middlewares/upload.middleware.js";
 
 // Social Links URL structure and protocol validation
 const validateSocialLinks = (links) => {
@@ -81,6 +62,10 @@ export const updateProfile = async (req, res) => {
 
     const updateData = {};
     if (username !== undefined) updateData.username = username;
+    if (nickname !== undefined) updateData.nickname = nickname;
+    if (location !== undefined) updateData.location = location;
+    if (occupation !== undefined) updateData.occupation = occupation;
+
     if (bio !== undefined) {
       if (bio.length > 500) {
         return res.status(400).json({ success: false, message: "คำอธิบายยาวเกิน 500 ตัวอักษร" });
@@ -284,6 +269,9 @@ export const getPublicProfile = async (req, res) => {
         bio: true,
         education_level: true,
         role: true,
+        nickname: true,
+        location: true,
+        occupation: true,
         social_links: true,
         created_at: true,
         current_theme_id: true,
