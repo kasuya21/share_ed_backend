@@ -44,7 +44,7 @@ const validateSocialLinks = (links) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, bio, education_level, social_links } = req.body;
+    const { username, nickname, location, occupation, bio, education_level, social_links } = req.body;
 
     // 1. ตรวจสอบชื่อเล่น (username) ซ้ำ
     if (username) {
