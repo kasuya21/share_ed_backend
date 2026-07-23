@@ -63,7 +63,7 @@ const validateSocialLinks = (links) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, bio, education_level, age, social_links } = req.body;
+    const { username, bio, education_level, social_links } = req.body;
 
     // 1. ตรวจสอบชื่อเล่น (username) ซ้ำ
     if (username) {
@@ -88,7 +88,7 @@ export const updateProfile = async (req, res) => {
       updateData.bio = bio;
     }
     if (education_level !== undefined) updateData.education_level = education_level;
-    if (age !== undefined) updateData.age = parseInt(age, 10);
+
 
     // 2. จัดการและตรวจสอบ URL Social Links
     if (social_links !== undefined) {
@@ -156,7 +156,6 @@ export const updateProfile = async (req, res) => {
         education_level: true,
         role: true,
         social_links: true,
-        age: true,
         current_theme_id: true,
         current_frame_id: true
       }
@@ -181,7 +180,7 @@ export const updateProfile = async (req, res) => {
 export const onboardUser = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, bio, education_level, age } = req.body;
+    const { username, bio, education_level } = req.body;
 
     if (!username) {
       return res.status(400).json({ success: false, message: "ต้องระบุชื่อเล่นสำหรับการตั้งค่าครั้งแรก" });
@@ -205,7 +204,7 @@ export const onboardUser = async (req, res) => {
 
     if (bio) updateData.bio = bio;
     if (education_level) updateData.education_level = education_level;
-    if (age !== undefined) updateData.age = parseInt(age, 10);
+
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },

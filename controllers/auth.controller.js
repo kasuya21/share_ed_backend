@@ -7,10 +7,10 @@ import { prisma } from "../configs/prisma.js";
 // ============================================================
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, confirmPassword, username, education_level, age } = req.body;
+    const { email, password, confirmPassword, username, education_level } = req.body;
 
     // 1. ตรวจสอบข้อมูลบังคับกรอก (Mandatory Fields)
-    if (!email || !password || !confirmPassword || !username || !education_level || age === undefined) {
+    if (!email || !password || !confirmPassword || !username || !education_level) {
       return res.status(400).json({ 
         success: false, 
         message: "กรุณาระบุข้อมูลให้ครบถ้วน" 
@@ -80,7 +80,6 @@ export const registerUser = async (req, res) => {
         email,
         username,
         education_level,
-        age: parseInt(age, 10),
         role: "MEMBER",
         status: "ACTIVE"
       }
