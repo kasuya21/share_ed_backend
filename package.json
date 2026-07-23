@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "build": "prisma generate",
+    "build": "prisma generate && prisma migrate deploy",
     "postinstall": "prisma generate",
     "seed": "node prisma/seed.js"
   },
@@ -40,6 +40,8 @@
   "devDependencies": {
     "@types/node": "^25.3.3",
     "@types/pg": "^8.18.0",
-    "prisma": "^7.4.2"
+    "openapi-to-postmanv2": "^6.3.0",
+    "prisma": "^7.4.2",
+    "swagger-autogen": "^2.23.7"
   }
 }

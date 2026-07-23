@@ -1,5 +1,5 @@
 import express from "express";
-import { updateProfile, equipItem, getPublicProfile, onboardUser } from "../controllers/user.controller.js";
+import { updateProfile, updateProfileWithMedia, equipItem, getPublicProfile, onboardUser } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
 
@@ -17,6 +17,17 @@ const profileUpload = upload.fields([
 ]);
 router.put("/profile", authMiddleware, profileUpload, updateProfile);
 
+router.put(
+  "/profile/with-media",
+  authMiddleware,
+  upload.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "banner", maxCount: 1 },
+    { name: "wallpaper", maxCount: 1 }
+  ]),
+  updateProfileWithMedia
+);
+
 // PUT  /api/v1/users/equip   — สวมใส่ Theme/Frame (ต้อง login)
 router.put("/equip", authMiddleware, equipItem);
 
@@ -24,4 +35,3 @@ router.put("/equip", authMiddleware, equipItem);
 router.put("/onboard", authMiddleware, onboardUser);
 
 export default router;
-

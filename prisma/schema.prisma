@@ -64,6 +64,8 @@ enum PostStatus {
   ACTIVE
   DELETED
   UNACTIVED
+  ACTIVE
+  DELETED
 }
 
 
@@ -84,7 +86,6 @@ model User {
   status UserStatus @default(ACTIVE)
 
   education_level EducationLevel?
-  age             Int?
   social_links    Json?
   wallpaper       String?
   profile_banner  String?
