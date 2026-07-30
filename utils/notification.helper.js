@@ -12,13 +12,21 @@ import { prisma } from "../configs/prisma.js";
  */
 export const createNotification = async (userId, typeCode, message) => {
   try {
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         user_id: userId,
         type: typeCode,
         message
       }
     });
+
+    // 🚀 ส่ง Notification ผ่าน WebSocket แบบ Real-time
+    import("../index.js").then(({ io }) => {
+      if (io) {
+        io.to(userId).emit("new_notification", notification);
+      }
+    }).catch(err => console.error("[Socket] Failed to emit notification:", err));
+
   } catch (error) {
     // Fire-and-forget: ไม่ throw เพื่อไม่กระทบ main flow
     console.error("[Notification] Failed to create notification:", error);

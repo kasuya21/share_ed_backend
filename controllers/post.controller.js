@@ -1,5 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import { updateMilestoneProgress } from "../utils/milestone.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import { supabase } from "../configs/supabase.config.js";
 
@@ -410,6 +411,12 @@ export const createPost = async (req, res) => {
           )
         )
       );
+
+      // 🏆 อัปเดต Milestone: POSTS_CREATED
+      const totalActivePosts = await prisma.post.count({
+        where: { author_id, post_status: "ACTIVE" }
+      });
+      await updateMilestoneProgress(author_id, "POSTS_CREATED", totalActivePosts);
     }
 
     res.status(201).json({
@@ -596,6 +603,12 @@ export const updatePost = async (req, res) => {
           )
         )
       );
+
+      // 🏆 อัปเดต Milestone: POSTS_CREATED
+      const totalActivePosts = await prisma.post.count({
+        where: { author_id: user_id, post_status: "ACTIVE" }
+      });
+      await updateMilestoneProgress(user_id, "POSTS_CREATED", totalActivePosts);
     }
 
     res.status(200).json({
