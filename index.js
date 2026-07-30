@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import cors from "cors";
 import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
@@ -26,7 +28,7 @@ import adminRoutes from "./routers/admin.router.js";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({
+const corsOptions = {
   origin: [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -37,7 +39,30 @@ app.use(cors({
     "https://share-ed-frontend-iota.vercel.app",
   ],
   credentials: true,
-}));
+};
+
+app.use(cors(corsOptions));
+
+const httpServer = createServer(app);
+export const io = new Server(httpServer, {
+  cors: corsOptions
+});
+
+io.on("connection", (socket) => {
+  console.log(`New socket connection: ${socket.id}`);
+  
+  // ให้ client ส่ง "join" พร้อมกับ userId หลังจาก authenticate
+  socket.on("join", (userId) => {
+    if (userId) {
+      socket.join(userId);
+      console.log(`Socket ${socket.id} joined room ${userId}`);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`Socket ${socket.id} disconnected`);
+  });
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -176,7 +201,7 @@ app.get("/", (req, res) => {
 </html>`);
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   initCronJobs();
   seedMilestonesAndRewards();

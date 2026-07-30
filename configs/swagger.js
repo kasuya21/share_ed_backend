@@ -2635,6 +2635,168 @@ export const swaggerDocument = {
           }
         }
       }
+    },
+    "/admin/milestones": {
+      "get": {
+        "summary": "Get All Milestones (Admin)",
+        "description": "Retrieve all milestones for admin management.",
+        "tags": [
+          "🛠️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of all milestones."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Milestone (Admin)",
+        "description": "Create a new milestone.",
+        "tags": [
+          "🛠️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "target_value": { "type": "integer" },
+                  "milestone_type": { "type": "string" },
+                  "reward_item_id": { "type": "string" },
+                  "item_name": { "type": "string" },
+                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_description": { "type": "string" },
+                  "is_active": { "type": "boolean" },
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Milestone created successfully."
+          },
+          "400": {
+            "description": "Missing required fields."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/admin/milestones/{id}": {
+      "put": {
+        "summary": "Update Milestone (Admin)",
+        "description": "Update an existing milestone.",
+        "tags": [
+          "🛠️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Milestone ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "target_value": { "type": "integer" },
+                  "milestone_type": { "type": "string" },
+                  "reward_item_id": { "type": "string" },
+                  "item_name": { "type": "string" },
+                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_description": { "type": "string" },
+                  "is_active": { "type": "boolean" },
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Milestone updated successfully."
+          },
+          "404": {
+            "description": "Milestone not found."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Milestone (Admin)",
+        "description": "Delete a milestone.",
+        "tags": [
+          "🛠️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Milestone ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Milestone deleted successfully."
+          },
+          "400": {
+            "description": "Cannot delete milestone, users have progress on it."
+          },
+          "404": {
+            "description": "Milestone not found."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
     }
   }
 };

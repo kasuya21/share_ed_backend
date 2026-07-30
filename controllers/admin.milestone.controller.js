@@ -54,7 +54,7 @@ export const createMilestone = async (req, res) => {
     if (reward_item_id) {
       const reward = await prisma.rewardItem.findUnique({ where: { id: reward_item_id } });
       if (!reward) {
-         return res.status(404).json({ success: false, message: "Reward item not found" });
+        return res.status(404).json({ success: false, message: "Reward item not found" });
       }
     } else if (item_name && item_type) {
       // Create new reward inline
@@ -118,7 +118,7 @@ export const updateMilestone = async (req, res) => {
     if (reward_item_id) {
       const reward = await prisma.rewardItem.findUnique({ where: { id: reward_item_id } });
       if (!reward) {
-         return res.status(404).json({ success: false, message: "Reward item not found" });
+        return res.status(404).json({ success: false, message: "Reward item not found" });
       }
     } else if (item_name && item_type) {
       // Create new reward inline
@@ -151,10 +151,10 @@ export const updateMilestone = async (req, res) => {
     if (description) updateData.description = description;
     if (target_value !== undefined) updateData.target_value = parseInt(target_value, 10);
     if (milestone_type) updateData.milestone_type = milestone_type;
-    
+
     // Explicitly check for null vs undefined to allow unsetting reward
     if (reward_item_id !== undefined) {
-       updateData.reward_item_id = reward_item_id;
+      updateData.reward_item_id = reward_item_id;
     }
 
     const updatedMilestone = await prisma.milestone.update({
@@ -185,7 +185,7 @@ export const deleteMilestone = async (req, res) => {
     });
 
     if (userMilestonesCount > 0) {
-       return res.status(400).json({ success: false, message: "Cannot delete milestone, users have progress on it" });
+      return res.status(400).json({ success: false, message: "Cannot delete milestone, users have progress on it" });
     }
 
     await prisma.milestone.delete({
