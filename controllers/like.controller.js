@@ -78,3 +78,27 @@ export const toggleLike = async (req, res) => {
   }
 };
 
+export const getLikeStatus = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user.id;
+
+    const existingLike = await prisma.like.findUnique({
+      where: {
+        user_id_post_id: {
+          user_id: userId,
+          post_id: postId
+        }
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      isLiked: !!existingLike
+    });
+  } catch (error) {
+    console.error("Get like status error:", error);
+    res.status(500).json({ success: false, message: "Failed to get like status" });
+  }
+};
+

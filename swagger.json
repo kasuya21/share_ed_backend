@@ -421,6 +421,23 @@
         }
       }
     },
+    "/posts/stats": {
+      "get": {
+        "summary": "Get Platform Statistics",
+        "description": "Returns platform statistics such as total posts, users, total likes, etc.",
+        "tags": [
+          "📝 Posts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform stats retrieved successfully."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
     "/posts": {
       "get": {
         "summary": "Get All Posts (Search & Filter)",
@@ -2594,6 +2611,57 @@
           },
           "500": {
             "description": "Server error"
+          }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "put": {
+        "summary": "Change User Password",
+        "description": "Change the password for the currently authenticated user.",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "newPassword",
+                  "confirmNewPassword"
+                ],
+                "properties": {
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                  },
+                  "confirmNewPassword": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed successfully."
+          },
+          "400": {
+            "description": "Bad request (e.g., passwords don't match or too short)."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "500": {
+            "description": "Server error."
           }
         }
       }
