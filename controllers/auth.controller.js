@@ -399,3 +399,41 @@ export const changePassword = async (req, res) => {
     return res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
   }
 };
+
+// ============================================================
+// POST /api/v1/auth/logout
+// ออกจากระบบ
+// ============================================================
+export const logoutUser = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace("Bearer ", "");
+    if (!token) {
+      return res.status(401).json({ success: false, message: "No token provided" });
+    }
+
+    const { createClient } = await import("@supabase/supabase-js");
+    const userSupabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      }
+    );
+
+    const { error } = await userSupabase.auth.signOut();
+
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message || "ออกจากระบบไม่สำเร็จ" });
+    }
+
+    return res.status(200).json({ success: true, message: "ออกจากระบบสำเร็จ" });
+
+  } catch (error) {
+    console.error("Logout user error:", error);
+    return res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการออกจากระบบ" });
+  }
+};
