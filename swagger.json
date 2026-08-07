@@ -1712,11 +1712,11 @@
         }
       }
     },
-    "/admin/rewards": {
+    "/admin/milestones": {
       "get": {
-        "summary": "Get All Rewards",
-        "description": "Retrieve all reward items. Role required: ADMIN.",
-        "tags": ["⚙️ Admin Rewards"],
+        "summary": "Get All Achievements",
+        "description": "Retrieve all milestones/achievements. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "responses": {
           "200": { "description": "Successful operation." },
@@ -1726,9 +1726,9 @@
         }
       },
       "post": {
-        "summary": "Create Reward",
-        "description": "Create a new reward item. Can optionally upload an image file. Role required: ADMIN.",
-        "tags": ["⚙️ Admin Rewards"],
+        "summary": "Create Achievement",
+        "description": "Create a new milestone/achievement. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "requestBody": {
           "required": true,
@@ -1736,20 +1736,25 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["item_name", "item_type"],
+                "required": ["title", "description", "target_value", "milestone_type"],
                 "properties": {
-                  "item_name": { "type": "string" },
+                  "title": { "type": "string" },
                   "description": { "type": "string" },
+                  "target_value": { "type": "integer" },
+                  "milestone_type": { "type": "string" },
+                  "reward_item_id": { "type": "string", "description": "Optional: Existing reward ID" },
+                  "item_name": { "type": "string", "description": "Optional: New reward name" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_description": { "type": "string" },
                   "is_active": { "type": "boolean", "default": true },
-                  "image": { "type": "string", "format": "binary" }
+                  "image": { "type": "string", "format": "binary", "description": "Image for the new reward" }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Reward created successfully." },
+          "201": { "description": "Milestone created successfully." },
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
@@ -1757,18 +1762,18 @@
         }
       }
     },
-    "/admin/rewards/{id}": {
+    "/admin/milestones/{id}": {
       "put": {
-        "summary": "Update Reward",
-        "description": "Update an existing reward item. Role required: ADMIN.",
-        "tags": ["⚙️ Admin Rewards"],
+        "summary": "Update Achievement",
+        "description": "Update an existing milestone/achievement. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Reward ID",
+            "description": "Milestone ID",
             "schema": { "type": "string" }
           }
         ],
@@ -1779,9 +1784,15 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "item_name": { "type": "string" },
+                  "title": { "type": "string" },
                   "description": { "type": "string" },
+                  "target_value": { "type": "integer" },
+                  "milestone_type": { "type": "string" },
+                  "reward_item_id": { "type": "string" },
+                  "item_name": { "type": "string" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_description": { "type": "string" },
+                  "is_active": { "type": "boolean" },
                   "image": { "type": "string", "format": "binary" }
                 }
               }
@@ -1789,50 +1800,50 @@
           }
         },
         "responses": {
-          "200": { "description": "Reward updated successfully." },
+          "200": { "description": "Milestone updated successfully." },
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Reward not found." },
+          "404": { "description": "Milestone not found." },
           "500": { "description": "Server error." }
         }
       },
       "delete": {
-        "summary": "Delete Reward",
-        "description": "Delete an existing reward item. Role required: ADMIN.",
-        "tags": ["⚙️ Admin Rewards"],
+        "summary": "Delete Achievement",
+        "description": "Delete a milestone/achievement. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Reward ID",
+            "description": "Milestone ID",
             "schema": { "type": "string" }
           }
         ],
         "responses": {
-          "200": { "description": "Reward deleted successfully." },
-          "400": { "description": "Bad request (e.g. used in milestones)." },
+          "200": { "description": "Milestone deleted successfully." },
+          "400": { "description": "Bad request (e.g., users have progress on it)." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Reward not found." },
+          "404": { "description": "Milestone not found." },
           "500": { "description": "Server error." }
         }
       }
     },
-    "/admin/rewards/{id}/status": {
+    "/admin/milestones/{id}/reward": {
       "patch": {
-        "summary": "Toggle Reward Status",
-        "description": "Toggle the active status of a reward. Role required: ADMIN.",
-        "tags": ["⚙️ Admin Rewards"],
+        "summary": "Map Reward to Achievement",
+        "description": "Map an existing reward to a milestone. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Reward ID",
+            "description": "Milestone ID",
             "schema": { "type": "string" }
           }
         ],
@@ -1842,20 +1853,19 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["is_active"],
                 "properties": {
-                  "is_active": { "type": "boolean" }
+                  "reward_id": { "type": "string", "description": "Reward ID to map, or null to unmap" }
                 }
               }
             }
           }
         },
         "responses": {
-          "200": { "description": "Status updated successfully." },
+          "200": { "description": "Mapped reward successfully." },
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Reward not found." },
+          "404": { "description": "Milestone or Reward not found." },
           "500": { "description": "Server error." }
         }
       }
