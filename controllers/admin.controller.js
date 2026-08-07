@@ -172,3 +172,62 @@ export const unbanUser = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to unban user" });
   }
 };
+
+// ระงับบัญชีผู้ใช้ (เปลี่ยน status เป็น SUSPENDED)
+export const suspendUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.role === "ADMIN") {
+      return res.status(400).json({ success: false, message: "Cannot suspend an admin account" });
+    }
+
+    if (user.status === "SUSPENDED") {
+      return res.status(400).json({ success: false, message: "User is already suspended" });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { status: "SUSPENDED" }
+    });
+
+    res.status(200).json({ success: true, message: "User suspended successfully" });
+  } catch (error) {
+    console.error("Suspend user error:", error);
+    res.status(500).json({ success: false, message: "Failed to suspend user" });
+  }
+};
+
+// เปิดใช้งานบัญชีผู้ใช้ (เปลี่ยน status เป็น ACTIVE)
+export const activateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (user.status === "ACTIVE") {
+      return res.status(400).json({ success: false, message: "User is already active" });
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { status: "ACTIVE" }
+    });
+
+    res.status(200).json({ success: true, message: "User activated successfully" });
+  } catch (error) {
+    console.error("Activate user error:", error);
+    res.status(500).json({ success: false, message: "Failed to activate user" });
+  }
+};

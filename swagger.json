@@ -1931,6 +1931,112 @@
         }
       }
     },
+    "/admin/users/{id}/suspend": {
+      "patch": {
+        "summary": "Suspend User",
+        "description": "Suspend a user account by setting status to SUSPENDED. Cannot suspend an ADMIN account. Role required: ADMIN.",
+        "tags": [
+          "⚙️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User ID to suspend",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "Optional reason for the suspension"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User suspended successfully."
+          },
+          "400": {
+            "description": "User is already suspended or cannot suspend admin."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "User not found."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/admin/users/{id}/activate": {
+      "patch": {
+        "summary": "Activate User",
+        "description": "Activate a user account by setting status to ACTIVE. Role required: ADMIN.",
+        "tags": [
+          "⚙️ Admin"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "User ID to activate",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User activated successfully."
+          },
+          "400": {
+            "description": "User is already active."
+          },
+          "401": {
+            "description": "Unauthorized."
+          },
+          "403": {
+            "description": "Forbidden."
+          },
+          "404": {
+            "description": "User not found."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
     "/users/{id}": {
       "get": {
         "summary": "Get Public Profile",

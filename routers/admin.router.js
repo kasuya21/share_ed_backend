@@ -5,7 +5,9 @@ import {
   getAllUsers,
   changeUserRole,
   banUser,
-  unbanUser
+  unbanUser,
+  suspendUser,
+  activateUser
 } from "../controllers/admin.controller.js";
 import {
   getAllRewards,
@@ -37,6 +39,8 @@ router.patch("/users/:id/role", changeUserRole);
 // Ban / Unban user
 router.patch("/users/:id/ban", banUser);
 router.patch("/users/:id/unban", unbanUser);
+router.patch("/users/:id/suspend", suspendUser);
+router.patch("/users/:id/activate", activateUser);
 
 // Reward Management
 router.get("/rewards", getAllRewards);

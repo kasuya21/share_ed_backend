@@ -29,7 +29,7 @@ async function handleMediaFiles(files, postId) {
       ? { 
           folder: `share-ed/posts/${postId}/pdfs`, 
           resource_type: "raw",
-          public_id: file.originalname.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_')
+          public_id: file.originalname.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_') + ".pdf"
         }
       : {
           folder: `share-ed/posts/${postId}/media`,
