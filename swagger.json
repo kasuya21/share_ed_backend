@@ -2130,7 +2130,7 @@
     "/users/profile": {
       "put": {
         "summary": "Update My Profile",
-        "description": "Update the authenticated user's profile detail.",
+        "description": "Update the authenticated user's profile detail including media files.",
         "tags": [
           "👤 Users"
         ],
@@ -2142,28 +2142,23 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "bio": {
-                    "type": "string"
-                  },
+                  "username": { "type": "string" },
+                  "nickname": { "type": "string" },
+                  "bio": { "type": "string" },
+                  "location": { "type": "string" },
+                  "occupation": { "type": "string" },
                   "education_level": {
                     "type": "string",
-                    "enum": [
-                      "MIDDLE_SCHOOL",
-                      "HIGH_SCHOOL",
-                      "UNIVERSITY"
-                    ]
+                    "enum": ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"]
                   },
-                  "profile_image": {
-                    "type": "string",
-                    "format": "uri"
-                  }
+                  "social_links": { "type": "string", "description": "JSON string of social links" },
+                  "profile_image": { "type": "string", "format": "binary" },
+                  "wallpaper": { "type": "string", "format": "binary" },
+                  "profile_banner": { "type": "string", "format": "binary" }
                 }
               }
             }
@@ -2181,13 +2176,91 @@
             }
           },
           "400": {
-            "description": "Username already taken."
+            "description": "Username already taken or invalid data."
           },
           "401": {
             "description": "Unauthorized."
           },
           "500": {
             "description": "Server error."
+          }
+        }
+      }
+    },
+    "/users/profile/with-media": {
+      "put": {
+        "summary": "Update Profile (with Media)",
+        "description": "Update profile details with separate social fields and media uploads.",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "nickname": { "type": "string" },
+                  "bio": { "type": "string" },
+                  "location": { "type": "string" },
+                  "occupation": { "type": "string" },
+                  "education_level": { "type": "string" },
+                  "facebook_url": { "type": "string" },
+                  "instagram_url": { "type": "string" },
+                  "discord_url": { "type": "string" },
+                  "avatar": { "type": "string", "format": "binary" },
+                  "banner": { "type": "string", "format": "binary" },
+                  "wallpaper": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile updated successfully."
+          }
+        }
+      }
+    },
+    "/users/onboard": {
+      "put": {
+        "summary": "Onboard User",
+        "description": "Initial profile setup for newly registered users.",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username"],
+                "properties": {
+                  "username": { "type": "string" },
+                  "bio": { "type": "string" },
+                  "education_level": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User onboarded successfully."
           }
         }
       }
@@ -2387,6 +2460,34 @@
         "responses": {
           "200": {
             "description": "User logged in"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout User",
+        "description": "Log out user, invalidate token, and terminate active session.",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User logged out successfully"
+          },
+          "400": {
+            "description": "Failed to logout"
+          },
+          "401": {
+            "description": "Unauthorized (No token provided)"
+          },
+          "500": {
+            "description": "Server error"
           }
         }
       }
