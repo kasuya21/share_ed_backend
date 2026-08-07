@@ -1712,6 +1712,154 @@
         }
       }
     },
+    "/admin/rewards": {
+      "get": {
+        "summary": "Get All Rewards",
+        "description": "Retrieve all reward items. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Rewards"],
+        "security": [{"BearerAuth": []}],
+        "responses": {
+          "200": { "description": "Successful operation." },
+          "401": { "description": "Unauthorized." },
+          "403": { "description": "Forbidden." },
+          "500": { "description": "Server error." }
+        }
+      },
+      "post": {
+        "summary": "Create Reward",
+        "description": "Create a new reward item. Can optionally upload an image file. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Rewards"],
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["item_name", "item_type"],
+                "properties": {
+                  "item_name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "is_active": { "type": "boolean", "default": true },
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Reward created successfully." },
+          "400": { "description": "Bad request." },
+          "401": { "description": "Unauthorized." },
+          "403": { "description": "Forbidden." },
+          "500": { "description": "Server error." }
+        }
+      }
+    },
+    "/admin/rewards/{id}": {
+      "put": {
+        "summary": "Update Reward",
+        "description": "Update an existing reward item. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Rewards"],
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Reward ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "item_name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "image": { "type": "string", "format": "binary" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Reward updated successfully." },
+          "400": { "description": "Bad request." },
+          "401": { "description": "Unauthorized." },
+          "403": { "description": "Forbidden." },
+          "404": { "description": "Reward not found." },
+          "500": { "description": "Server error." }
+        }
+      },
+      "delete": {
+        "summary": "Delete Reward",
+        "description": "Delete an existing reward item. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Rewards"],
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Reward ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Reward deleted successfully." },
+          "400": { "description": "Bad request (e.g. used in milestones)." },
+          "401": { "description": "Unauthorized." },
+          "403": { "description": "Forbidden." },
+          "404": { "description": "Reward not found." },
+          "500": { "description": "Server error." }
+        }
+      }
+    },
+    "/admin/rewards/{id}/status": {
+      "patch": {
+        "summary": "Toggle Reward Status",
+        "description": "Toggle the active status of a reward. Role required: ADMIN.",
+        "tags": ["⚙️ Admin Rewards"],
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Reward ID",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["is_active"],
+                "properties": {
+                  "is_active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Status updated successfully." },
+          "400": { "description": "Bad request." },
+          "401": { "description": "Unauthorized." },
+          "403": { "description": "Forbidden." },
+          "404": { "description": "Reward not found." },
+          "500": { "description": "Server error." }
+        }
+      }
+    },
     "/admin/users": {
       "get": {
         "summary": "Get All Users",
