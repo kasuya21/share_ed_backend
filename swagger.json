@@ -2232,6 +2232,34 @@
           }
         }
       }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout User",
+        "description": "Log out user, invalidate token, and terminate active session.",
+        "tags": [
+          "🔐 Auth"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User logged out successfully"
+          },
+          "400": {
+            "description": "Failed to logout"
+          },
+          "401": {
+            "description": "Unauthorized (No token provided)"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
     }
   }
 }
