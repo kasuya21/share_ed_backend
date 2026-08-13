@@ -24,6 +24,7 @@ import userRoutes from "./routers/user.router.js";
 import reportRoutes from "./routers/report.router.js";
 import moderatorRoutes from "./routers/moderator.router.js";
 import adminRoutes from "./routers/admin.router.js";
+import categoryRoutes from "./routers/category.router.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,7 +51,7 @@ export const io = new Server(httpServer, {
 
 io.on("connection", (socket) => {
   console.log(`New socket connection: ${socket.id}`);
-  
+
   // ให้ client ส่ง "join" พร้อมกับ userId หลังจาก authenticate
   socket.on("join", (userId) => {
     if (userId) {
@@ -96,6 +97,7 @@ app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/reports", reportRoutes);
 app.use("/api/v1/moderator", moderatorRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/categories", categoryRoutes);
 
 app.get("/", (req, res) => {
   res.send(`<!DOCTYPE html>
