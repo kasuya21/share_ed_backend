@@ -23,6 +23,11 @@ import {
   updateMilestone,
   deleteMilestone
 } from "../controllers/admin.milestone.controller.js";
+import {
+  createCategory,
+  updateCategory,
+  deleteCategory
+} from "../controllers/category.controller.js";
 import { upload } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
@@ -57,5 +62,10 @@ router.get("/milestones", getAllMilestones);
 router.post("/milestones", upload.single("image"), createMilestone);
 router.put("/milestones/:id", upload.single("image"), updateMilestone);
 router.delete("/milestones/:id", deleteMilestone);
+
+// Category Management
+router.post("/categories", createCategory);
+router.put("/categories/:id", updateCategory);
+router.delete("/categories/:id", deleteCategory);
 
 export default router;

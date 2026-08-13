@@ -1,5 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import cloudinary from "../configs/cloudinary.config.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 
 // Helper for Cloudinary Uploads
 const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
@@ -112,6 +113,7 @@ export const updateReward = async (req, res) => {
     }
 
     if (req.file) {
+      if (reward.image_url) await deleteFromCloudinary(reward.image_url);
       const result = await uploadToCloudinary(
         req.file.buffer,
         "share-ed/rewards"

@@ -2,6 +2,7 @@ import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateMilestoneProgress } from "../utils/milestone.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
@@ -57,7 +58,7 @@ async function handleMediaFiles(files, postId) {
 // ============================================================
 export const getAllPosts = async (req, res) => {
   try {
-    const { search, level, sort, tag } = req.query;
+    const { search, level, sort, tag, category_id } = req.query;
 
     const where = { post_status: "ACTIVE" };
 
@@ -86,6 +87,11 @@ export const getAllPosts = async (req, res) => {
     // กรองตามระดับชั้นการศึกษา
     if (level) {
       where.education_level = level;
+    }
+
+    // กรองตามหมวดหมู่
+    if (category_id) {
+      where.category_id = category_id;
     }
 
     // กรองตามแท็กที่เลือก
@@ -497,6 +503,9 @@ export const updatePost = async (req, res) => {
 
     // อัปโหลดไฟล์รูปหน้าปกใหม่
     if (coverFiles && coverFiles.length > 0) {
+      if (post.cover_image) {
+        await deleteFromCloudinary(post.cover_image);
+      }
       const uploadResult = await uploadToCloudinary(coverFiles[0].buffer, {
         folder: "share-ed/posts/covers",
         transformation: [
@@ -550,6 +559,18 @@ export const updatePost = async (req, res) => {
         }
       }
       if (Array.isArray(parsedRemoveIds) && parsedRemoveIds.length > 0) {
+        const mediaToDelete = await prisma.postMedia.findMany({
+          where: {
+            id: { in: parsedRemoveIds },
+            post_id: id
+          }
+        });
+        
+        for (const m of mediaToDelete) {
+          const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
+          await deleteFromCloudinary(m.media_url, resourceType);
+        }
+
         await prisma.postMedia.deleteMany({
           where: {
             id: { in: parsedRemoveIds },

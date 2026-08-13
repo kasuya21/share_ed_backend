@@ -1,6 +1,7 @@
 import { prisma } from "../configs/prisma.js";
 import { supabase } from "../configs/supabase.config.js";
 import { uploadToCloudinary } from "../middlewares/upload.middleware.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 
 // Social Links URL structure and protocol validation
 const validateSocialLinks = (links) => {
@@ -98,6 +99,7 @@ export const updateProfile = async (req, res) => {
     if (req.files) {
       // อัปโหลดรูปโปรไฟล์
       if (req.files.profile_image && req.files.profile_image.length > 0) {
+        if (user.profile_image) await deleteFromCloudinary(user.profile_image);
         const result = await uploadToCloudinary(
           req.files.profile_image[0].buffer,
           "share-ed/profiles",
@@ -110,6 +112,7 @@ export const updateProfile = async (req, res) => {
 
       // อัปโหลดภาพวอลเปเปอร์
       if (req.files.wallpaper && req.files.wallpaper.length > 0) {
+        if (user.wallpaper) await deleteFromCloudinary(user.wallpaper);
         const result = await uploadToCloudinary(
           req.files.wallpaper[0].buffer,
           "share-ed/wallpapers"
@@ -119,6 +122,7 @@ export const updateProfile = async (req, res) => {
 
       // อัปโหลดภาพแบนเนอร์
       if (req.files.profile_banner && req.files.profile_banner.length > 0) {
+        if (user.profile_banner) await deleteFromCloudinary(user.profile_banner);
         const result = await uploadToCloudinary(
           req.files.profile_banner[0].buffer,
           "share-ed/banners"
@@ -405,14 +409,17 @@ export const updateProfileWithMedia = async (req, res) => {
     // Handle file uploads
     if (req.files) {
       if (req.files.avatar && req.files.avatar[0]) {
+        if (user.profile_image) await deleteFromCloudinary(user.profile_image);
         const result = await uploadToCloudinary(req.files.avatar[0].buffer, "share-ed/avatars");
         updateData.profile_image = result.secure_url;
       }
       if (req.files.banner && req.files.banner[0]) {
+        if (user.profile_banner) await deleteFromCloudinary(user.profile_banner);
         const result = await uploadToCloudinary(req.files.banner[0].buffer, "share-ed/banners");
         updateData.profile_banner = result.secure_url;
       }
       if (req.files.wallpaper && req.files.wallpaper[0]) {
+        if (user.wallpaper) await deleteFromCloudinary(user.wallpaper);
         const result = await uploadToCloudinary(req.files.wallpaper[0].buffer, "share-ed/wallpapers");
         updateData.wallpaper = result.secure_url;
       }
