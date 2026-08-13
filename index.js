@@ -38,6 +38,7 @@ const corsOptions = {
     "https://share-ed-backend-6jer.onrender.com",
     "https://share-ed-frontend-gamma.vercel.app",
     "https://share-ed-frontend-iota.vercel.app",
+    "https://github.com/kasuya21/share_ed_backend.git",
   ],
   credentials: true,
 };
