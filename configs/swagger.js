@@ -660,6 +660,87 @@ export const swaggerDocument = {
       }
     },
 
+    "/categories": {
+      "get": {
+        "summary": "Get All Categories",
+        "description": "Retrieve a list of all available categories",
+        "tags": ["🏷️ Categories"],
+        "responses": {
+          "200": {
+            "description": "List of categories retrieved successfully."
+          }
+        }
+      }
+    },
+    "/admin/categories": {
+      "post": {
+        "summary": "Create Category",
+        "description": "Create a new category (Admin only)",
+        "tags": ["🛡️ Admin"],
+        "security": [{"BearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "วิทยาศาสตร์" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Category created successfully" },
+          "400": { "description": "Category name missing or already exists" },
+          "500": { "description": "Server error" }
+        }
+      }
+    },
+    "/admin/categories/{id}": {
+      "put": {
+        "summary": "Update Category",
+        "description": "Rename a category (Admin only)",
+        "tags": ["🛡️ Admin"],
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "example": "คณิตศาสตร์" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Category updated successfully" },
+          "404": { "description": "Category not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete Category",
+        "description": "Delete a category and unlink it from all associated posts (Admin only)",
+        "tags": ["🛡️ Admin"],
+        "security": [{"BearerAuth": []}],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Category deleted successfully" },
+          "404": { "description": "Category not found" }
+        }
+      }
+    },
     "/posts": {
       "get": {
         "summary": "Get All Posts (Search & Filter)",
@@ -704,6 +785,16 @@ export const swaggerDocument = {
                 "likes"
               ],
               "default": "latest"
+            }
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "description": "Category ID filter",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
