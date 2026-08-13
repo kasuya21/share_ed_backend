@@ -44,7 +44,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+
 
 const httpServer = createServer(app);
 export const io = new Server(httpServer, {
