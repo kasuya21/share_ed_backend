@@ -38,7 +38,7 @@ const corsOptions = {
     "https://share-ed-backend-6jer.onrender.com",
     "https://share-ed-frontend-gamma.vercel.app",
     "https://share-ed-frontend-iota.vercel.app",
-    "http://aws-sharehub-app-2026-frontend.s3-website-us-east-1.amazonaws.com/",
+    "http://share-ed.s3-website-us-east-1.amazonaws.com/",
   ],
   credentials: true,
 };
