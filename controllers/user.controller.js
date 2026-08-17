@@ -517,3 +517,33 @@ export const getUserById = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// ============================================================
+// GET /api/v1/users/me/inventory
+// ดึงรายการของรางวัลที่ปลดล็อกแล้วทั้งหมด
+// ============================================================
+export const getUserInventory = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const inventory = await prisma.userUnlockedItem.findMany({
+      where: { user_id: userId },
+      include: {
+        item: true
+      },
+      orderBy: {
+        unlocked_at: "desc"
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "ดึงข้อมูลคลังของสะสมสำเร็จ",
+      data: inventory
+    });
+  } catch (error) {
+    console.error("Get user inventory error:", error);
+    res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการดึงข้อมูลคลังของสะสม" });
+  }
+};
+

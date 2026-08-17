@@ -385,6 +385,28 @@
             "format": "date-time"
           }
         }
+      },
+      "UserUnlockedItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "item_id": {
+            "type": "string"
+          },
+          "unlocked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "item": {
+            "$ref": "#/components/schemas/RewardItem"
+          }
+        }
       }
     }
   },
@@ -408,6 +430,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized or invalid token."
+          },
+          "500": {
+            "description": "Server error."
+          }
+        }
+      }
+    },
+    "/users/me/inventory": {
+      "get": {
+        "summary": "Get User Inventory",
+        "description": "Retrieve a list of all unlocked items for the current user.",
+        "tags": [
+          "👤 Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved inventory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserUnlockedItem"
+                      }
+                    }
+                  }
                 }
               }
             }
