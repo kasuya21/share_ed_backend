@@ -38,11 +38,13 @@ const corsOptions = {
     "https://share-ed-backend-6jer.onrender.com",
     "https://share-ed-frontend-gamma.vercel.app",
     "https://share-ed-frontend-iota.vercel.app",
+    "http://share-ed.s3-website-us-east-1.amazonaws.com",
   ],
   credentials: true,
 };
 
 app.use(cors(corsOptions));
+
 
 const httpServer = createServer(app);
 export const io = new Server(httpServer, {
