@@ -138,8 +138,8 @@ export const loginUser = async (req, res) => {
         unlocked_items: {
           include: { item: true }
         },
-        user_milestones: {
-          include: { milestone: true }
+        user_achievements: {
+          include: { achievement: true }
         }
       }
     });
@@ -158,8 +158,8 @@ export const loginUser = async (req, res) => {
           unlocked_items: {
             include: { item: true }
           },
-          user_milestones: {
-            include: { milestone: true }
+          user_achievements: {
+            include: { achievement: true }
           }
         }
       });
@@ -217,8 +217,8 @@ export const verifyUser = async (req, res) => {
         unlocked_items: {
           include: { item: true }
         },
-        user_milestones: {
-          include: { milestone: true }
+        user_achievements: {
+          include: { achievement: true }
         }
       }
     });
@@ -247,8 +247,8 @@ export const verifyUser = async (req, res) => {
             unlocked_items: {
               include: { item: true }
             },
-            user_milestones: {
-              include: { milestone: true }
+            user_achievements: {
+              include: { achievement: true }
             }
           }
         });
@@ -286,8 +286,8 @@ export const verifyUser = async (req, res) => {
             unlocked_items: {
               include: { item: true }
             },
-            user_milestones: {
-              include: { milestone: true }
+            user_achievements: {
+              include: { achievement: true }
             }
           }
         });
@@ -310,8 +310,8 @@ export const verifyUser = async (req, res) => {
             unlocked_items: {
               include: { item: true }
             },
-            user_milestones: {
-              include: { milestone: true }
+            user_achievements: {
+              include: { achievement: true }
             }
           }
         });

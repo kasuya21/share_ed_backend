@@ -1,6 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
-import { updateMilestoneProgress } from "../utils/milestone.helper.js";
+import { updateAchievementProgress } from "../utils/achievement.helper.js";
 
 export const createComment = async (req, res) => {
   try {
@@ -52,11 +52,11 @@ export const createComment = async (req, res) => {
       );
     }
 
-    // 🏆 อัปเดต Milestone: COMMENTS_CREATED
+    // 🏆 อัปเดต Achievement: COMMENTS_CREATED
     const totalComments = await prisma.comment.count({
       where: { user_id }
     });
-    await updateMilestoneProgress(user_id, "COMMENTS_CREATED", totalComments);
+    await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

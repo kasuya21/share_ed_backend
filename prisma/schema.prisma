@@ -66,7 +66,6 @@ enum PostStatus {
   UNACTIVED
 }
 
-
 //////////////////////////////////////////////////////
 // USER
 //////////////////////////////////////////////////////
@@ -88,11 +87,11 @@ model User {
   wallpaper       String?
   profile_banner  String?
 
-  is_onboarded    Boolean @default(false)
+  is_onboarded Boolean @default(false)
 
-  nickname        String?
-  location        String?
-  occupation      String?
+  nickname   String?
+  location   String?
+  occupation String?
 
   current_theme_id String?
   current_frame_id String?
@@ -113,10 +112,10 @@ model User {
 
   notifications Notification[]
 
-  unlocked_items UserUnlockedItem[]
-  user_milestones UserMilestone[]
-  views       PostView[]
-  reports     Report[]
+  unlocked_items    UserUnlockedItem[]
+  user_achievements UserAchievement[]
+  views             PostView[]
+  reports           Report[]
 
   @@index([username])
   @@index([email])
@@ -145,10 +144,10 @@ model Post {
   bookmark_count Int @default(0)
 
   author_id String
-  author User @relation(fields: [author_id], references: [id])
+  author    User   @relation(fields: [author_id], references: [id])
 
   category_id String?
-  category Category? @relation(fields: [category_id], references: [id])
+  category    Category? @relation(fields: [category_id], references: [id])
 
   cover_image String?
 
@@ -292,7 +291,7 @@ model PostMedia {
   media_type MediaType
 
   post_id String
-  post Post @relation(fields: [post_id], references: [id])
+  post    Post   @relation(fields: [post_id], references: [id])
 
   @@map("post_media")
 }
@@ -304,10 +303,10 @@ model PostMedia {
 model Follow {
   id String @id @default(uuid())
 
-  follower_id String
+  follower_id  String
   following_id String
 
-  follower User @relation("followers", fields: [follower_id], references: [id])
+  follower  User @relation("followers", fields: [follower_id], references: [id])
   following User @relation("following", fields: [following_id], references: [id])
 
   created_at DateTime @default(now())
@@ -326,7 +325,7 @@ model Notification {
   id String @id @default(uuid()) @map("notification_id")
 
   user_id String
-  type NotificationTypeCode @default(NEW_POST)
+  type    NotificationTypeCode @default(NEW_POST)
 
   message String
 
@@ -357,8 +356,8 @@ model RewardItem {
 
   is_active Boolean @default(true)
 
-  unlocked_by UserUnlockedItem[]
-  milestones  Milestone[]
+  unlocked_by  UserUnlockedItem[]
+  achievements Achievement[]
 
   theme_users User[] @relation("UserTheme")
   frame_users User[] @relation("UserFrame")
@@ -375,7 +374,7 @@ model UserUnlockedItem {
   user_id String
   item_id String
 
-  user User @relation(fields: [user_id], references: [id])
+  user User       @relation(fields: [user_id], references: [id])
   item RewardItem @relation(fields: [item_id], references: [id])
 
   unlocked_at DateTime @default(now())
@@ -385,49 +384,49 @@ model UserUnlockedItem {
 }
 
 //////////////////////////////////////////////////////
-// MILESTONES
+// ACHIEVEMENTS
 //////////////////////////////////////////////////////
 
-model Milestone {
+model Achievement {
   id String @id @default(uuid())
 
-  title String
+  title       String
   description String
 
-  target_value Int
-  milestone_type String
+  target_value     Int
+  achievement_type String
 
   reward_item_id String?
-  reward_item RewardItem? @relation(fields: [reward_item_id], references: [id])
+  reward_item    RewardItem? @relation(fields: [reward_item_id], references: [id])
 
-  user_milestones UserMilestone[]
+  user_achievements UserAchievement[]
 
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
-  @@map("milestones")
+  @@map("achievements")
 }
 
-model UserMilestone {
+model UserAchievement {
   id String @id @default(uuid())
 
-  user_id String
-  milestone_id String
+  user_id        String
+  achievement_id String
 
-  current_progress Int @default(0)
-  is_completed Boolean @default(false)
+  current_progress Int     @default(0)
+  is_completed     Boolean @default(false)
 
   completed_at DateTime?
-  claimed_at DateTime?
+  claimed_at   DateTime?
 
-  user User @relation(fields: [user_id], references: [id])
-  milestone Milestone @relation(fields: [milestone_id], references: [id])
+  user        User        @relation(fields: [user_id], references: [id])
+  achievement Achievement @relation(fields: [achievement_id], references: [id])
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@unique([user_id, milestone_id])
-  @@map("user_milestones")
+  @@unique([user_id, achievement_id])
+  @@map("user_achievements")
 }
 
 //////////////////////////////////////////////////////

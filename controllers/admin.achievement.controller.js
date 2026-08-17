@@ -21,33 +21,33 @@ const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
   });
 };
 
-// GET /api/v1/admin/milestones
-export const getAllMilestones = async (req, res) => {
+// GET /api/v1/admin/achievements
+export const getAllAchievements = async (req, res) => {
   try {
-    const milestones = await prisma.milestone.findMany({
+    const achievements = await prisma.achievement.findMany({
       include: {
         reward_item: true,
       },
       orderBy: { created_at: "desc" },
     });
-    res.status(200).json({ success: true, data: milestones });
+    res.status(200).json({ success: true, data: achievements });
   } catch (error) {
-    console.error("Get all milestones error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch milestones" });
+    console.error("Get all achievements error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch achievements" });
   }
 };
 
-// POST /api/v1/admin/milestones
-export const createMilestone = async (req, res) => {
+// POST /api/v1/admin/achievements
+export const createAchievement = async (req, res) => {
   try {
-    // Basic milestone fields
-    const { title, description, target_value, milestone_type } = req.body;
+    // Basic achievement fields
+    const { title, description, target_value, achievement_type } = req.body;
     // Reward fields (optional)
     let { reward_item_id } = req.body;
     const { item_name, item_type, item_description, is_active } = req.body;
 
-    if (!title || !description || target_value === undefined || !milestone_type) {
-      return res.status(400).json({ success: false, message: "Missing required milestone fields" });
+    if (!title || !description || target_value === undefined || !achievement_type) {
+      return res.status(400).json({ success: false, message: "Missing required achievement fields" });
     }
 
     // If reward_item_id is provided, check if it exists
@@ -55,6 +55,9 @@ export const createMilestone = async (req, res) => {
       const reward = await prisma.rewardItem.findUnique({ where: { id: reward_item_id } });
       if (!reward) {
         return res.status(404).json({ success: false, message: "Reward item not found" });
+      }
+      if (!reward.is_active) {
+        return res.status(400).json({ success: false, message: "ไม่สามารถเลือกของรางวัลที่มีสถานะปิดใช้งานได้" });
       }
     } else if (item_name && item_type) {
       // Create new reward inline
@@ -82,36 +85,36 @@ export const createMilestone = async (req, res) => {
       reward_item_id = newReward.id;
     }
 
-    const milestone = await prisma.milestone.create({
+    const achievement = await prisma.achievement.create({
       data: {
         title,
         description,
         target_value: parseInt(target_value, 10),
-        milestone_type,
+        achievement_type,
         reward_item_id: reward_item_id || null,
       },
     });
 
-    res.status(201).json({ success: true, message: "Milestone created successfully", data: milestone });
+    res.status(201).json({ success: true, message: "Achievement created successfully", data: achievement });
   } catch (error) {
-    console.error("Create milestone error:", error);
-    res.status(500).json({ success: false, message: "Failed to create milestone" });
+    console.error("Create achievement error:", error);
+    res.status(500).json({ success: false, message: "Failed to create achievement" });
   }
 };
 
-// PUT /api/v1/admin/milestones/:id
-export const updateMilestone = async (req, res) => {
+// PUT /api/v1/admin/achievements/:id
+export const updateAchievement = async (req, res) => {
   try {
     const { id } = req.params;
-    // Basic milestone fields
-    const { title, description, target_value, milestone_type } = req.body;
+    // Basic achievement fields
+    const { title, description, target_value, achievement_type } = req.body;
     // Reward fields (optional)
     let { reward_item_id } = req.body;
     const { item_name, item_type, item_description, is_active } = req.body;
 
-    const existingMilestone = await prisma.milestone.findUnique({ where: { id } });
-    if (!existingMilestone) {
-      return res.status(404).json({ success: false, message: "Milestone not found" });
+    const existingAchievement = await prisma.achievement.findUnique({ where: { id } });
+    if (!existingAchievement) {
+      return res.status(404).json({ success: false, message: "Achievement not found" });
     }
 
     // If an existing reward_item_id is provided directly
@@ -119,6 +122,9 @@ export const updateMilestone = async (req, res) => {
       const reward = await prisma.rewardItem.findUnique({ where: { id: reward_item_id } });
       if (!reward) {
         return res.status(404).json({ success: false, message: "Reward item not found" });
+      }
+      if (!reward.is_active) {
+        return res.status(400).json({ success: false, message: "ไม่สามารถเลือกของรางวัลที่มีสถานะปิดใช้งานได้" });
       }
     } else if (item_name && item_type) {
       // Create new reward inline
@@ -150,51 +156,51 @@ export const updateMilestone = async (req, res) => {
     if (title) updateData.title = title;
     if (description) updateData.description = description;
     if (target_value !== undefined) updateData.target_value = parseInt(target_value, 10);
-    if (milestone_type) updateData.milestone_type = milestone_type;
+    if (achievement_type) updateData.achievement_type = achievement_type;
 
     // Explicitly check for null vs undefined to allow unsetting reward
     if (reward_item_id !== undefined) {
       updateData.reward_item_id = reward_item_id;
     }
 
-    const updatedMilestone = await prisma.milestone.update({
+    const updatedAchievement = await prisma.achievement.update({
       where: { id },
       data: updateData,
     });
 
-    res.status(200).json({ success: true, message: "Milestone updated successfully", data: updatedMilestone });
+    res.status(200).json({ success: true, message: "Achievement updated successfully", data: updatedAchievement });
   } catch (error) {
-    console.error("Update milestone error:", error);
-    res.status(500).json({ success: false, message: "Failed to update milestone" });
+    console.error("Update achievement error:", error);
+    res.status(500).json({ success: false, message: "Failed to update achievement" });
   }
 };
 
-// DELETE /api/v1/admin/milestones/:id
-export const deleteMilestone = async (req, res) => {
+// DELETE /api/v1/admin/achievements/:id
+export const deleteAchievement = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existingMilestone = await prisma.milestone.findUnique({ where: { id } });
-    if (!existingMilestone) {
-      return res.status(404).json({ success: false, message: "Milestone not found" });
+    const existingAchievement = await prisma.achievement.findUnique({ where: { id } });
+    if (!existingAchievement) {
+      return res.status(404).json({ success: false, message: "Achievement not found" });
     }
 
-    // Check if there are user milestones associated
-    const userMilestonesCount = await prisma.userMilestone.count({
-      where: { milestone_id: id }
+    // Check if there are user achievements associated
+    const userAchievementsCount = await prisma.userAchievement.count({
+      where: { achievement_id: id }
     });
 
-    if (userMilestonesCount > 0) {
-      return res.status(400).json({ success: false, message: "Cannot delete milestone, users have progress on it" });
+    if (userAchievementsCount > 0) {
+      return res.status(400).json({ success: false, message: "Cannot delete achievement, users have progress on it" });
     }
 
-    await prisma.milestone.delete({
+    await prisma.achievement.delete({
       where: { id },
     });
 
-    res.status(200).json({ success: true, message: "Milestone deleted successfully" });
+    res.status(200).json({ success: true, message: "Achievement deleted successfully" });
   } catch (error) {
-    console.error("Delete milestone error:", error);
-    res.status(500).json({ success: false, message: "Failed to delete milestone" });
+    console.error("Delete achievement error:", error);
+    res.status(500).json({ success: false, message: "Failed to delete achievement" });
   }
 };

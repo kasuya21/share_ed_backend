@@ -1,6 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
-import { updateMilestoneProgress } from "../utils/milestone.helper.js";
+import { updateAchievementProgress } from "../utils/achievement.helper.js";
 
 export const toggleLike = async (req, res) => {
   try {
@@ -59,7 +59,7 @@ export const toggleLike = async (req, res) => {
         );
       }
 
-      // 🏆 อัปเดต Milestone: POST_LIKES (สำหรับเจ้าของโพสต์)
+      // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์)
       const userPosts = await prisma.post.findMany({
         where: { author_id: post.author_id },
         select: { id: true }
@@ -68,7 +68,7 @@ export const toggleLike = async (req, res) => {
       const totalLikesReceived = await prisma.like.count({
         where: { post_id: { in: postIds } }
       });
-      await updateMilestoneProgress(post.author_id, "POST_LIKES", totalLikesReceived);
+      await updateAchievementProgress(post.author_id, "POST_LIKES", totalLikesReceived);
 
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });
     }

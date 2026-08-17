@@ -2,27 +2,27 @@ import { prisma } from "../configs/prisma.js";
 import { createNotification } from "./notification.helper.js";
 
 /**
- * Update milestone progress for a user based on type
+ * Update achievement progress for a user based on type
  * @param {string} userId - User ID to update progress for
- * @param {string} milestoneType - Milestone milestone_type (e.g., 'FOLLOWERS_COUNT', 'POST_LIKES')
+ * @param {string} achievementType - Achievement achievement_type (e.g., 'FOLLOWERS_COUNT', 'POST_LIKES')
  * @param {number} currentTotal - Current exact total value for the condition
  */
-export const updateMilestoneProgress = async (userId, milestoneType, currentTotal) => {
+export const updateAchievementProgress = async (userId, achievementType, currentTotal) => {
   try {
-    const milestones = await prisma.milestone.findMany({
-      where: { milestone_type: milestoneType }
+    const achievements = await prisma.achievement.findMany({
+      where: { achievement_type: achievementType }
     });
 
-    for (const milestone of milestones) {
-      let um = await prisma.userMilestone.findUnique({
-        where: { user_id_milestone_id: { user_id: userId, milestone_id: milestone.id } }
+    for (const achievement of achievements) {
+      let um = await prisma.userAchievement.findUnique({
+        where: { user_id_achievement_id: { user_id: userId, achievement_id: achievement.id } }
       });
 
       if (!um) {
-        um = await prisma.userMilestone.create({
+        um = await prisma.userAchievement.create({
           data: {
             user_id: userId,
-            milestone_id: milestone.id,
+            achievement_id: achievement.id,
             current_progress: 0,
             is_completed: false
           }
@@ -31,10 +31,10 @@ export const updateMilestoneProgress = async (userId, milestoneType, currentTota
 
       if (um.is_completed) continue;
 
-      const newProgress = Math.min(currentTotal, milestone.target_value);
-      const isCompleted = newProgress >= milestone.target_value;
+      const newProgress = Math.min(currentTotal, achievement.target_value);
+      const isCompleted = newProgress >= achievement.target_value;
 
-      await prisma.userMilestone.update({
+      await prisma.userAchievement.update({
         where: { id: um.id },
         data: {
           current_progress: newProgress,
@@ -47,19 +47,19 @@ export const updateMilestoneProgress = async (userId, milestoneType, currentTota
         await createNotification(
           userId,
           "QUEST_COMPLETED",
-          `Congratulations! You've completed the milestone: ${milestone.title}`
+          `Congratulations! You've completed the achievement: ${achievement.title}`
         );
       }
     }
   } catch (error) {
-    console.error(`Error updating milestone progress (${milestoneType}):`, error);
+    console.error(`Error updating achievement progress (${achievementType}):`, error);
   }
 };
 
 /**
- * Seed required milestones and reward items if they do not exist
+ * Seed required achievements and reward items if they do not exist
  */
-export const seedMilestonesAndRewards = async () => {
+export const seedAchievementsAndRewards = async () => {
   try {
     // 1. Seed Reward Items
     const specialTheme = await prisma.rewardItem.upsert({
@@ -84,35 +84,35 @@ export const seedMilestonesAndRewards = async () => {
       }
     });
 
-    // 2. Seed Milestones
-    await prisma.milestone.upsert({
-      where: { id: "milestone_followers_10" },
+    // 2. Seed Achievements
+    await prisma.achievement.upsert({
+      where: { id: "achievement_followers_10" },
       update: {},
       create: {
-        id: "milestone_followers_10",
+        id: "achievement_followers_10",
         title: "มีผู้ติดตามครบ 10 คนแล้ว",
         description: "เป้าหมายผู้ติดตามครบ 10 คน",
         target_value: 10,
-        milestone_type: "FOLLOWERS_COUNT",
+        achievement_type: "FOLLOWERS_COUNT",
         reward_item_id: specialTheme.id
       }
     });
 
-    await prisma.milestone.upsert({
-      where: { id: "milestone_likes_50" },
+    await prisma.achievement.upsert({
+      where: { id: "achievement_likes_50" },
       update: {},
       create: {
-        id: "milestone_likes_50",
+        id: "achievement_likes_50",
         title: "มีคนกดไลค์ให้ครบ 50 ไลค์แล้ว",
         description: "เป้าหมายยอดไลค์สะสมครบ 50 ไลค์",
         target_value: 50,
-        milestone_type: "POST_LIKES",
+        achievement_type: "POST_LIKES",
         reward_item_id: specialFrame.id
       }
     });
 
-    console.log("[Milestone Seeder] Milestones and Rewards seeded successfully.");
+    console.log("[Achievement Seeder] Achievements and Rewards seeded successfully.");
   } catch (error) {
-    console.error("[Milestone Seeder] Seeding error:", error);
+    console.error("[Achievement Seeder] Seeding error:", error);
   }
 };

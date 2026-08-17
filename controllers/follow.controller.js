@@ -1,6 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
-import { updateMilestoneProgress } from "../utils/milestone.helper.js";
+import { updateAchievementProgress } from "../utils/achievement.helper.js";
 
 // ============================================================
 // POST /api/v1/follow/:userId
@@ -58,9 +58,9 @@ export const followUser = async (req, res) => {
       `${followerUser.username} started following you`
     );
 
-    // 🏆 อัปเดต Milestone: FOLLOWERS_COUNT
+    // 🏆 อัปเดต Achievement: FOLLOWERS_COUNT
     const totalFollowers = await prisma.follow.count({ where: { following_id } });
-    await updateMilestoneProgress(following_id, "FOLLOWERS_COUNT", totalFollowers);
+    await updateAchievementProgress(following_id, "FOLLOWERS_COUNT", totalFollowers);
 
     res.status(201).json({
       success: true,

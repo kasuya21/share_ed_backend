@@ -320,7 +320,7 @@
           }
         }
       },
-      "Milestone": {
+      "Achievement": {
         "type": "object",
         "properties": {
           "id": {
@@ -336,7 +336,7 @@
           "target_value": {
             "type": "integer"
           },
-          "milestone_type": {
+          "achievement_type": {
             "type": "string"
           },
           "reward_item_id": {
@@ -345,7 +345,7 @@
           }
         }
       },
-      "UserMilestone": {
+      "UserAchievement": {
         "type": "object",
         "properties": {
           "id": {
@@ -355,7 +355,7 @@
           "user_id": {
             "type": "string"
           },
-          "milestone_id": {
+          "achievement_id": {
             "type": "string"
           },
           "current_progress": {
@@ -1729,10 +1729,10 @@
         }
       }
     },
-    "/admin/milestones": {
+    "/admin/achievements": {
       "get": {
         "summary": "Get All Achievements",
-        "description": "Retrieve all milestones/achievements. Role required: ADMIN.",
+        "description": "Retrieve all achievements/achievements. Role required: ADMIN.",
         "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "responses": {
@@ -1744,7 +1744,7 @@
       },
       "post": {
         "summary": "Create Achievement",
-        "description": "Create a new milestone/achievement. Role required: ADMIN.",
+        "description": "Create a new achievement/achievement. Role required: ADMIN.",
         "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "requestBody": {
@@ -1753,12 +1753,12 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["title", "description", "target_value", "milestone_type"],
+                "required": ["title", "description", "target_value", "achievement_type"],
                 "properties": {
                   "title": { "type": "string" },
                   "description": { "type": "string" },
                   "target_value": { "type": "integer" },
-                  "milestone_type": { "type": "string" },
+                  "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string", "description": "Optional: Existing reward ID" },
                   "item_name": { "type": "string", "description": "Optional: New reward name" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
@@ -1771,7 +1771,7 @@
           }
         },
         "responses": {
-          "201": { "description": "Milestone created successfully." },
+          "201": { "description": "Achievement created successfully." },
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
@@ -1779,10 +1779,10 @@
         }
       }
     },
-    "/admin/milestones/{id}": {
+    "/admin/achievements/{id}": {
       "put": {
         "summary": "Update Achievement",
-        "description": "Update an existing milestone/achievement. Role required: ADMIN.",
+        "description": "Update an existing achievement/achievement. Role required: ADMIN.",
         "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
@@ -1790,7 +1790,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": { "type": "string" }
           }
         ],
@@ -1804,7 +1804,7 @@
                   "title": { "type": "string" },
                   "description": { "type": "string" },
                   "target_value": { "type": "integer" },
-                  "milestone_type": { "type": "string" },
+                  "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
@@ -1817,17 +1817,17 @@
           }
         },
         "responses": {
-          "200": { "description": "Milestone updated successfully." },
+          "200": { "description": "Achievement updated successfully." },
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Milestone not found." },
+          "404": { "description": "Achievement not found." },
           "500": { "description": "Server error." }
         }
       },
       "delete": {
         "summary": "Delete Achievement",
-        "description": "Delete a milestone/achievement. Role required: ADMIN.",
+        "description": "Delete a achievement/achievement. Role required: ADMIN.",
         "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
@@ -1835,24 +1835,24 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": { "type": "string" }
           }
         ],
         "responses": {
-          "200": { "description": "Milestone deleted successfully." },
+          "200": { "description": "Achievement deleted successfully." },
           "400": { "description": "Bad request (e.g., users have progress on it)." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Milestone not found." },
+          "404": { "description": "Achievement not found." },
           "500": { "description": "Server error." }
         }
       }
     },
-    "/admin/milestones/{id}/reward": {
+    "/admin/achievements/{id}/reward": {
       "patch": {
         "summary": "Map Reward to Achievement",
-        "description": "Map an existing reward to a milestone. Role required: ADMIN.",
+        "description": "Map an existing reward to a achievement. Role required: ADMIN.",
         "tags": ["⚙️ Admin Achievements"],
         "security": [{"BearerAuth": []}],
         "parameters": [
@@ -1860,7 +1860,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": { "type": "string" }
           }
         ],
@@ -1882,7 +1882,7 @@
           "400": { "description": "Bad request." },
           "401": { "description": "Unauthorized." },
           "403": { "description": "Forbidden." },
-          "404": { "description": "Milestone or Reward not found." },
+          "404": { "description": "Achievement or Reward not found." },
           "500": { "description": "Server error." }
         }
       }
@@ -2451,12 +2451,12 @@
         }
       }
     },
-    "/milestones": {
+    "/achievements": {
       "get": {
-        "summary": "Get Milestones",
-        "description": "Retrieve milestones and user progress.",
+        "summary": "Get Achievements",
+        "description": "Retrieve achievements and user progress.",
         "tags": [
-          "🏆 Milestones"
+          "🏆 Achievements"
         ],
         "security": [
           {
@@ -2465,13 +2465,13 @@
         ],
         "responses": {
           "200": {
-            "description": "List of milestones with user progress.",
+            "description": "List of achievements with user progress.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Milestone"
+                    "$ref": "#/components/schemas/Achievement"
                   }
                 }
               }
@@ -2480,12 +2480,12 @@
         }
       }
     },
-    "/milestones/{id}/claim": {
+    "/achievements/{id}/claim": {
       "post": {
-        "summary": "Claim Milestone Reward",
-        "description": "Claim the reward item for a completed milestone.",
+        "summary": "Claim Achievement Reward",
+        "description": "Claim the reward item for a completed achievement.",
         "tags": [
-          "🏆 Milestones"
+          "🏆 Achievements"
         ],
         "security": [
           {
@@ -2497,7 +2497,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": {
               "type": "string"
             }
@@ -2508,7 +2508,7 @@
             "description": "Reward claimed successfully."
           },
           "400": {
-            "description": "Milestone not completed or already claimed."
+            "description": "Achievement not completed or already claimed."
           }
         }
       }

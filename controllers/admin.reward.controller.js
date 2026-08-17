@@ -170,12 +170,12 @@ export const deleteReward = async (req, res) => {
       return res.status(404).json({ success: false, message: "Reward not found" });
     }
 
-    // Check if used in Milestones
-    const usedInMilestones = await prisma.milestone.findFirst({
+    // Check if used in Achievements
+    const usedInAchievements = await prisma.achievement.findFirst({
       where: { reward_item_id: id }
     });
 
-    if (usedInMilestones) {
+    if (usedInAchievements) {
       return res.status(400).json({ 
         success: false, 
         message: "ไม่สามารถลบได้ เนื่องจากของรางวัลถูกนำไปผูกกับ Achievement อยู่" 
@@ -195,14 +195,14 @@ export const deleteReward = async (req, res) => {
 };
 
 // 4.1.7.3.4: การเชื่อมโยงของรางวัลกับเป้าหมายความสำเร็จ
-export const mapRewardToMilestone = async (req, res) => {
+export const mapRewardToAchievement = async (req, res) => {
   try {
-    const { id } = req.params; // milestone ID
+    const { id } = req.params; // achievement ID
     const { reward_id } = req.body;
 
-    const milestone = await prisma.milestone.findUnique({ where: { id } });
-    if (!milestone) {
-      return res.status(404).json({ success: false, message: "Milestone not found" });
+    const achievement = await prisma.achievement.findUnique({ where: { id } });
+    if (!achievement) {
+      return res.status(404).json({ success: false, message: "Achievement not found" });
     }
 
     if (reward_id) {
@@ -216,14 +216,14 @@ export const mapRewardToMilestone = async (req, res) => {
       }
     }
 
-    const updatedMilestone = await prisma.milestone.update({
+    const updatedAchievement = await prisma.achievement.update({
       where: { id },
       data: { reward_item_id: reward_id || null }
     });
 
-    res.status(200).json({ success: true, message: "Mapped reward to milestone successfully", data: updatedMilestone });
+    res.status(200).json({ success: true, message: "Mapped reward to achievement successfully", data: updatedAchievement });
   } catch (error) {
-    console.error("Map reward to milestone error:", error);
-    res.status(500).json({ success: false, message: "Failed to map reward to milestone" });
+    console.error("Map reward to achievement error:", error);
+    res.status(500).json({ success: false, message: "Failed to map reward to achievement" });
   }
 };

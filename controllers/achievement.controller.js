@@ -1,23 +1,23 @@
 import { prisma } from "../configs/prisma.js";
 
-// GET /api/v1/milestones
-export const getMilestones = async (req, res) => {
+// GET /api/v1/achievements
+export const getAchievements = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const milestones = await prisma.milestone.findMany({
+    const achievements = await prisma.achievement.findMany({
       include: {
         reward_item: true,
       }
     });
 
-    const userMilestones = await prisma.userMilestone.findMany({
+    const userAchievements = await prisma.userAchievement.findMany({
       where: { user_id: userId }
     });
 
-    // Merge data so frontend sees milestones + progress and status
-    const result = milestones.map(m => {
-      const um = userMilestones.find(x => x.milestone_id === m.id);
+    // Merge data so frontend sees achievements + progress and status
+    const result = achievements.map(m => {
+      const um = userAchievements.find(x => x.achievement_id === m.id);
       let status = "LOCKED";
       if (um) {
         if (um.claimed_at) {
@@ -38,28 +38,28 @@ export const getMilestones = async (req, res) => {
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error("Get milestones error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch milestones" });
+    console.error("Get achievements error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch achievements" });
   }
 };
 
-// POST /api/v1/milestones/:id/claim
-export const claimMilestoneReward = async (req, res) => {
+// POST /api/v1/achievements/:id/claim
+export const claimAchievementReward = async (req, res) => {
   try {
     const userId = req.user.id;
-    const milestoneId = req.params.id;
+    const achievementId = req.params.id;
 
-    const um = await prisma.userMilestone.findUnique({
-      where: { user_id_milestone_id: { user_id: userId, milestone_id: milestoneId } },
-      include: { milestone: true }
+    const um = await prisma.userAchievement.findUnique({
+      where: { user_id_achievement_id: { user_id: userId, achievement_id: achievementId } },
+      include: { achievement: true }
     });
 
     if (!um) {
-      return res.status(404).json({ success: false, message: "Milestone progress not found" });
+      return res.status(404).json({ success: false, message: "Achievement progress not found" });
     }
 
     if (!um.is_completed) {
-      return res.status(400).json({ success: false, message: "Milestone is not completed yet" });
+      return res.status(400).json({ success: false, message: "Achievement is not completed yet" });
     }
 
     if (um.claimed_at) {
@@ -67,12 +67,12 @@ export const claimMilestoneReward = async (req, res) => {
     }
 
     // Grant reward if exists
-    if (um.milestone.reward_item_id) {
+    if (um.achievement.reward_item_id) {
       // Create userUnlockedItem
       const existingUnlock = await prisma.userUnlockedItem.findFirst({
         where: {
           user_id: userId,
-          item_id: um.milestone.reward_item_id
+          item_id: um.achievement.reward_item_id
         }
       });
 
@@ -80,20 +80,20 @@ export const claimMilestoneReward = async (req, res) => {
          await prisma.userUnlockedItem.create({
            data: {
              user_id: userId,
-             item_id: um.milestone.reward_item_id
+             item_id: um.achievement.reward_item_id
            }
          });
       }
     }
 
-    const updated = await prisma.userMilestone.update({
+    const updated = await prisma.userAchievement.update({
       where: { id: um.id },
       data: { claimed_at: new Date() }
     });
 
     res.status(200).json({ success: true, message: "Reward claimed successfully", data: updated });
   } catch (error) {
-    console.error("Claim milestone error:", error);
+    console.error("Claim achievement error:", error);
     res.status(500).json({ success: false, message: "Failed to claim reward" });
   }
 };

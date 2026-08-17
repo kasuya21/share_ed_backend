@@ -6,10 +6,10 @@ import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./configs/swagger.js";
 import { initCronJobs } from "./utils/cron.js";
-import { seedMilestonesAndRewards } from "./utils/milestone.helper.js";
+import { seedAchievementsAndRewards } from "./utils/achievement.helper.js";
 
 import authRoutes from "./routers/auth.router.js";
-import milestoneRoutes from "./routers/milestone.router.js";
+import achievementRoutes from "./routers/achievement.router.js";
 
 import commentRoutes from "./routers/comment.router.js";
 import postRoutes from "./routers/post.router.js";
@@ -82,7 +82,7 @@ app.get("/api-docs.json", (req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/milestones", milestoneRoutes);
+app.use("/api/v1/achievements", achievementRoutes);
 
 app.use("/api/v1/comment", commentRoutes);
 app.use("/api/v1/posts", postRoutes);
@@ -206,5 +206,5 @@ app.get("/", (req, res) => {
 httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   initCronJobs();
-  seedMilestonesAndRewards();
+  seedAchievementsAndRewards();
 });

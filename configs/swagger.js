@@ -332,7 +332,7 @@ export const swaggerDocument = {
           }
         }
       },
-      "Milestone": {
+      "Achievement": {
         "type": "object",
         "properties": {
           "id": {
@@ -348,7 +348,7 @@ export const swaggerDocument = {
           "target_value": {
             "type": "integer"
           },
-          "milestone_type": {
+          "achievement_type": {
             "type": "string"
           },
           "reward_item_id": {
@@ -357,7 +357,7 @@ export const swaggerDocument = {
           }
         }
       },
-      "UserMilestone": {
+      "UserAchievement": {
         "type": "object",
         "properties": {
           "id": {
@@ -367,7 +367,7 @@ export const swaggerDocument = {
           "user_id": {
             "type": "string"
           },
-          "milestone_id": {
+          "achievement_id": {
             "type": "string"
           },
           "current_progress": {
@@ -2665,12 +2665,12 @@ export const swaggerDocument = {
         }
       }
     },
-    "/milestones": {
+    "/achievements": {
       "get": {
-        "summary": "Get Milestones",
-        "description": "Retrieve milestones and user progress.",
+        "summary": "Get Achievements",
+        "description": "Retrieve achievements and user progress.",
         "tags": [
-          "🏆 Milestones"
+          "🏆 Achievements"
         ],
         "security": [
           {
@@ -2679,13 +2679,13 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "List of milestones with user progress.",
+            "description": "List of achievements with user progress.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Milestone"
+                    "$ref": "#/components/schemas/Achievement"
                   }
                 }
               }
@@ -2694,12 +2694,12 @@ export const swaggerDocument = {
         }
       }
     },
-    "/milestones/{id}/claim": {
+    "/achievements/{id}/claim": {
       "post": {
-        "summary": "Claim Milestone Reward",
-        "description": "Claim the reward item for a completed milestone.",
+        "summary": "Claim Achievement Reward",
+        "description": "Claim the reward item for a completed achievement.",
         "tags": [
-          "🏆 Milestones"
+          "🏆 Achievements"
         ],
         "security": [
           {
@@ -2711,7 +2711,7 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": {
               "type": "string"
             }
@@ -2722,15 +2722,15 @@ export const swaggerDocument = {
             "description": "Reward claimed successfully."
           },
           "400": {
-            "description": "Milestone not completed or already claimed."
+            "description": "Achievement not completed or already claimed."
           }
         }
       }
     },
-    "/admin/milestones": {
+    "/admin/achievements": {
       "get": {
-        "summary": "Get All Milestones (Admin)",
-        "description": "Retrieve all milestones for admin management.",
+        "summary": "Get All Achievements (Admin)",
+        "description": "Retrieve all achievements for admin management.",
         "tags": [
           "🛠️ Admin"
         ],
@@ -2741,7 +2741,7 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "List of all milestones."
+            "description": "List of all achievements."
           },
           "500": {
             "description": "Server error."
@@ -2749,8 +2749,8 @@ export const swaggerDocument = {
         }
       },
       "post": {
-        "summary": "Create Milestone (Admin)",
-        "description": "Create a new milestone.",
+        "summary": "Create Achievement (Admin)",
+        "description": "Create a new achievement.",
         "tags": [
           "🛠️ Admin"
         ],
@@ -2769,7 +2769,7 @@ export const swaggerDocument = {
                   "title": { "type": "string" },
                   "description": { "type": "string" },
                   "target_value": { "type": "integer" },
-                  "milestone_type": { "type": "string" },
+                  "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
@@ -2783,7 +2783,7 @@ export const swaggerDocument = {
         },
         "responses": {
           "201": {
-            "description": "Milestone created successfully."
+            "description": "Achievement created successfully."
           },
           "400": {
             "description": "Missing required fields."
@@ -2794,10 +2794,10 @@ export const swaggerDocument = {
         }
       }
     },
-    "/admin/milestones/{id}": {
+    "/admin/achievements/{id}": {
       "put": {
-        "summary": "Update Milestone (Admin)",
-        "description": "Update an existing milestone.",
+        "summary": "Update Achievement (Admin)",
+        "description": "Update an existing achievement.",
         "tags": [
           "🛠️ Admin"
         ],
@@ -2811,7 +2811,7 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": {
               "type": "string"
             }
@@ -2827,7 +2827,7 @@ export const swaggerDocument = {
                   "title": { "type": "string" },
                   "description": { "type": "string" },
                   "target_value": { "type": "integer" },
-                  "milestone_type": { "type": "string" },
+                  "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
                   "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
@@ -2841,10 +2841,10 @@ export const swaggerDocument = {
         },
         "responses": {
           "200": {
-            "description": "Milestone updated successfully."
+            "description": "Achievement updated successfully."
           },
           "404": {
-            "description": "Milestone not found."
+            "description": "Achievement not found."
           },
           "500": {
             "description": "Server error."
@@ -2852,8 +2852,8 @@ export const swaggerDocument = {
         }
       },
       "delete": {
-        "summary": "Delete Milestone (Admin)",
-        "description": "Delete a milestone.",
+        "summary": "Delete Achievement (Admin)",
+        "description": "Delete a achievement.",
         "tags": [
           "🛠️ Admin"
         ],
@@ -2867,7 +2867,7 @@ export const swaggerDocument = {
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "Milestone ID",
+            "description": "Achievement ID",
             "schema": {
               "type": "string"
             }
@@ -2875,13 +2875,13 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "Milestone deleted successfully."
+            "description": "Achievement deleted successfully."
           },
           "400": {
-            "description": "Cannot delete milestone, users have progress on it."
+            "description": "Cannot delete achievement, users have progress on it."
           },
           "404": {
-            "description": "Milestone not found."
+            "description": "Achievement not found."
           },
           "500": {
             "description": "Server error."

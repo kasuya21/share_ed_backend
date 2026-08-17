@@ -15,14 +15,14 @@ import {
   updateReward,
   toggleRewardStatus,
   deleteReward,
-  mapRewardToMilestone
+  mapRewardToAchievement
 } from "../controllers/admin.reward.controller.js";
 import {
-  getAllMilestones,
-  createMilestone,
-  updateMilestone,
-  deleteMilestone
-} from "../controllers/admin.milestone.controller.js";
+  getAllAchievements,
+  createAchievement,
+  updateAchievement,
+  deleteAchievement
+} from "../controllers/admin.achievement.controller.js";
 import {
   createCategory,
   updateCategory,
@@ -54,14 +54,14 @@ router.put("/rewards/:id", upload.single("image"), updateReward);
 router.patch("/rewards/:id/status", toggleRewardStatus);
 router.delete("/rewards/:id", deleteReward);
 
-// Milestone mapping
-router.patch("/milestones/:id/reward", mapRewardToMilestone);
+// Achievement mapping
+router.patch("/achievements/:id/reward", mapRewardToAchievement);
 
-// Milestone Management
-router.get("/milestones", getAllMilestones);
-router.post("/milestones", upload.single("image"), createMilestone);
-router.put("/milestones/:id", upload.single("image"), updateMilestone);
-router.delete("/milestones/:id", deleteMilestone);
+// Achievement Management
+router.get("/achievements", getAllAchievements);
+router.post("/achievements", upload.single("image"), createAchievement);
+router.put("/achievements/:id", upload.single("image"), updateAchievement);
+router.delete("/achievements/:id", deleteAchievement);
 
 // Category Management
 router.post("/categories", createCategory);
