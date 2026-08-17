@@ -411,6 +411,11 @@ export const updateProfileWithMedia = async (req, res) => {
 
     // Handle file uploads
     if (req.files) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
       if (req.files.avatar && req.files.avatar[0]) {
         if (user.profile_image) await deleteFromCloudinary(user.profile_image);
         const result = await uploadToCloudinary(req.files.avatar[0].buffer, "share-ed/avatars");
