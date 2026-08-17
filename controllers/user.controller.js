@@ -34,6 +34,9 @@ const validateSocialLinks = (links) => {
     if (platform === "youtube" && !matchesDomain(hostname, "youtube.com")) {
       return "ลิงก์ Youtube ไม่ถูกต้อง (ต้องมี youtube.com)";
     }
+    if (platform === "discord" && !matchesDomain(hostname, "discord.com") && !matchesDomain(hostname, "discord.gg")) {
+      return "ลิงก์ Discord ไม่ถูกต้อง (ต้องมี discord.com หรือ discord.gg)";
+    }
   }
   return null;
 };

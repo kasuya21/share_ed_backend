@@ -1,6 +1,7 @@
 import { prisma } from "../configs/prisma.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
+import crypto from "crypto";
 
 // Helper for Cloudinary Uploads
 const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
@@ -67,20 +68,18 @@ export const createReward = async (req, res) => {
     // Let's check schema: id String @id @map("item_id")
     // Wait, earlier schema showed RewardItem: `id String @id @map("item_id")` (no default(uuid))
     // We should use crypto.randomUUID()
-    import("crypto").then(async (crypto) => {
-        const newReward = await prisma.rewardItem.create({
-          data: {
-            id: crypto.randomUUID(),
-            item_name,
-            item_type,
-            image_url,
-            metadata,
-            is_active: isActiveBool
-          }
-        });
-    
-        res.status(201).json({ success: true, message: "Reward created successfully", data: newReward });
+    const newReward = await prisma.rewardItem.create({
+      data: {
+        id: crypto.randomUUID(),
+        item_name,
+        item_type,
+        image_url,
+        metadata,
+        is_active: isActiveBool
+      }
     });
+
+    res.status(201).json({ success: true, message: "Reward created successfully", data: newReward });
   } catch (error) {
     console.error("Create reward error:", error);
     res.status(500).json({ success: false, message: "Failed to create reward" });
