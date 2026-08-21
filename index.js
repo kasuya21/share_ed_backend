@@ -31,14 +31,14 @@ const PORT = process.env.PORT || 3000;
 
 const corsOptions = {
   origin: [
-    "http://localhost:3000",
     "http://localhost:5173",
-    "http://localhost:5174",
     "http://localhost:4173",
     "https://share-ed-backend-6jer.onrender.com",
     "https://share-ed-frontend-gamma.vercel.app",
     "https://share-ed-frontend-iota.vercel.app",
     "http://share-ed.s3-website-us-east-1.amazonaws.com",
+    "https://share-ed.online"
+
   ],
   credentials: true,
 };
