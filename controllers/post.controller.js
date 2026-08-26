@@ -300,35 +300,7 @@ export const createPost = async (req, res) => {
       }
     }
 
-    // 2. มาตรการป้องกันสแปม (สร้างโพสต์ไม่เกิน 3 โพสต์ใน 24 ชั่วโมง)
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentPostCount = await prisma.post.count({
-      where: {
-        author_id,
-        created_at: { gte: since24h },
-        post_status: { in: ["ACTIVE", "DRAFT"] } // นับโพสต์ปกติและแบบร่าง
-      }
-    });
 
-    if (recentPostCount >= 3) {
-      const oldestRecentPost = await prisma.post.findFirst({
-        where: {
-          author_id,
-          created_at: { gte: since24h },
-          post_status: { in: ["ACTIVE", "DRAFT"] }
-        },
-        orderBy: { created_at: "asc" }
-      });
-      const resetTime = oldestRecentPost 
-        ? (oldestRecentPost.created_at.getTime() + 24 * 60 * 60 * 1000 - Date.now()) 
-        : 0;
-
-      return res.status(429).json({
-        success: false,
-        message: "คุณสร้างโพสต์ครบขีดจำกัด 3 โพสต์ในรอบ 24 ชั่วโมงแล้ว",
-        countdown: Math.max(0, resetTime)
-      });
-    }
 
     // 3. จัดการ Tag
     let parsedTags = tags;
