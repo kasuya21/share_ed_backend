@@ -6,7 +6,6 @@ import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./configs/swagger.js";
 import { initCronJobs } from "./utils/cron.js";
-import { seedAchievementsAndRewards } from "./utils/achievement.helper.js";
 
 import authRoutes from "./routers/auth.router.js";
 import achievementRoutes from "./routers/achievement.router.js";
@@ -208,5 +207,4 @@ app.get("/", (req, res) => {
 httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   initCronJobs();
-  seedAchievementsAndRewards();
 });
