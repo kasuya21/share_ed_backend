@@ -1,7 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import {
-  getMyNotifications,
+  getNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification
@@ -13,7 +13,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // GET  /api/v1/notifications           — ดึงการแจ้งเตือนทั้งหมด
-router.get("/", getMyNotifications);
+router.get("/", getNotifications);
 
 // PATCH /api/v1/notifications/read-all — อ่านทั้งหมด (ต้องอยู่ก่อน /:id)
 router.patch("/read-all", markAllAsRead);
