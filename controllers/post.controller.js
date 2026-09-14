@@ -156,7 +156,7 @@ export const getPostById = async (req, res) => {
     const userId = req.user.id;
 
     // ดึงบทบาทผู้ใช้ด้วย
-    const userRole = req.user.role || (await prisma.user.findUnique({
+    const userRole = req.userRole || (await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true }
     }))?.role;

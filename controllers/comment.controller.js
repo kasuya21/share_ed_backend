@@ -70,6 +70,7 @@ export const getCommentsByPost = async (req, res) => {
     const comments = await prisma.comment.findMany({
       where: {
         post_id: postId,
+        post: { post_status: "ACTIVE" },
       },
       include: {
         user: {
@@ -140,6 +141,11 @@ export const updateComment = async (req, res) => {
     if (comment.user_id !== user_id) {
       return res.status(403).json({ message: "Forbidden" });
     }
+
+    const publishedPost = await prisma.post.findFirst({
+      where: { id: comment.post_id, post_status: "ACTIVE" }, select: { id: true }
+    });
+    if (!publishedPost) return res.status(404).json({ message: "Post not found" });
 
     const updatedComment = await prisma.comment.update({
       where: { id },

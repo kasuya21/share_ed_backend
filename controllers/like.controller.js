@@ -8,7 +8,7 @@ export const toggleLike = async (req, res) => {
     const userId = req.user.id;
 
     const post = await prisma.post.findUnique({ where: { id: postId } });
-    if (!post) {
+    if (!post || post.post_status !== "ACTIVE") {
       return res.status(404).json({ success: false, message: "Post not found" });
     }
 

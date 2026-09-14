@@ -22,7 +22,7 @@ export const reportPost = async (req, res) => {
       include: { _count: { select: { reports: true } } }
     });
 
-    if (!post) {
+    if (!post || post.post_status !== "ACTIVE") {
       return res.status(404).json({ message: "Post not found" });
     }
 

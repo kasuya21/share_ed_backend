@@ -27,7 +27,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
     // Check if user is BANNED or SUSPENDED in database
     const dbUser = await prisma.user.findUnique({
       where: { id: data.user.id },
-      select: { status: true }
+      select: { status: true, role: true }
     });
 
     if (!dbUser && !allowProvisioning) {
@@ -40,6 +40,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
       });
     }
 
+    req.userRole = dbUser?.role;
     req.user = data.user; // attach user
 
     next();

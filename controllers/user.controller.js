@@ -100,6 +100,8 @@ export const updateProfile = async (req, res) => {
 
     // 3. ตรวจสอบและอัปโหลดไฟล์รูปภาพ (profile_image, wallpaper, profile_banner)
     if (req.files) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return res.status(404).json({ message: "User not found" });
       // อัปโหลดรูปโปรไฟล์
       if (req.files.profile_image && req.files.profile_image.length > 0) {
         if (user.profile_image) await deleteFromCloudinary(user.profile_image);
