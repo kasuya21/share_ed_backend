@@ -1,3 +1,4 @@
+import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
 
@@ -7,7 +8,12 @@ import { prisma } from "../configs/prisma.js";
 // ============================================================
 export const registerUser = async (req, res) => {
   try {
-    const { email, password, confirmPassword, username, education_level } = req.body;
+    const { email, password, confirmPassword, username, education_level } = req.body || {};
+    if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      || typeof username !== "string" || !username.trim() || username.length > 100
+      || !["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"].includes(education_level)) {
+      return res.status(400).json({ success: false, message: "Invalid registration fields" });
+    }
 
     // 1. ตรวจสอบข้อมูลบังคับกรอก (Mandatory Fields)
     if (!email || !password || !confirmPassword || !username || !education_level) {
@@ -18,7 +24,7 @@ export const registerUser = async (req, res) => {
     }
 
     // 2. ความปลอดภัยของรหัสผ่าน
-    if (password.length < 8) {
+    if (typeof password !== "string" || password.length < 8 || password.length > 128) {
       return res.status(400).json({ 
         success: false, 
         message: "รหัสผ่านต้องมีความยาวไม่น้อยกว่า 8 ตัวอักษร" 
@@ -106,9 +112,9 @@ export const registerUser = async (req, res) => {
 // ============================================================
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password || email.length > 254 || password.length > 128) {
       return res.status(400).json({ 
         success: false, 
         message: "กรุณากรอกอีเมลและรหัสผ่าน" 
@@ -196,7 +202,7 @@ export const loginUser = async (req, res) => {
 // ============================================================
 export const verifyUser = async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
+    const token = bearerToken(req.headers.authorization);
 
     if (!token) {
       return res.status(401).json({ message: "No token" });
@@ -232,27 +238,7 @@ export const verifyUser = async (req, res) => {
       });
 
       if (existingUserByEmail) {
-        // อัปเดต primary key user_id ของบัญชีเดิมใน Prisma ให้ตรงกับ Supabase Google user ID
-        // PostgreSQL จะอัปเดต cascade ไปยังตารางอื่นๆ ที่อ้างอิงอัตโนมัติ
-        await prisma.$executeRawUnsafe(
-          'UPDATE users SET user_id = $1 WHERE user_id = $2',
-          authUser.id,
-          existingUserByEmail.id
-        );
-
-        // ดึงข้อมูลสมาชิกที่ถูกผูกเรียบร้อยแล้ว
-        dbUser = await prisma.user.findUnique({
-          where: { id: authUser.id },
-          include: {
-            unlocked_items: {
-              include: { item: true }
-            },
-            user_achievements: {
-              include: { achievement: true }
-            }
-          }
-        });
-
+        return res.status(409).json({ message: "Account linking requires verification through the identity provider" });
       } else {
         // กรณีเป็นสมาชิกใหม่ที่ไม่เคยมีอีเมลนี้ในระบบมาก่อน
         // ดึงรูปโปรไฟล์และตั้ง Nickname เริ่มต้นจากชื่อบัญชี Google
@@ -351,18 +337,18 @@ export const verifyUser = async (req, res) => {
 // ============================================================
 export const changePassword = async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
+    const token = bearerToken(req.headers.authorization);
     if (!token) {
       return res.status(401).json({ success: false, message: "No token provided" });
     }
 
-    const { newPassword, confirmNewPassword } = req.body;
+    const { newPassword, confirmNewPassword } = req.body || {};
 
     if (!newPassword || !confirmNewPassword) {
       return res.status(400).json({ success: false, message: "กรุณากรอกรหัสผ่านใหม่และการยืนยัน" });
     }
 
-    if (newPassword.length < 8) {
+    if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 128) {
       return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร" });
     }
 
@@ -406,7 +392,7 @@ export const changePassword = async (req, res) => {
 // ============================================================
 export const logoutUser = async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace("Bearer ", "");
+    const token = bearerToken(req.headers.authorization);
     if (!token) {
       return res.status(401).json({ success: false, message: "No token provided" });
     }

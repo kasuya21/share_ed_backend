@@ -1,106 +1,99 @@
-import { prisma } from "../configs/prisma.js";
-import { createNotification } from "../utils/notification.helper.js";
+import { prisma } from '../configs/prisma.js';
 
 // ============================================================
-// GET /api/v1/notifications
-// ดึงการแจ้งเตือนทั้งหมดของ user ที่ login อยู่
+// GET /api/v1/notifications — ดึงการแจ้งเตือนของ user ที่ login อยู่
 // ============================================================
-export const getMyNotifications = async (req, res) => {
+export const getNotifications = async (req, res) => {
   try {
-    const user_id = req.user.id;
-
+    const userId = req.user.id;
     const notifications = await prisma.notification.findMany({
-      where: { user_id },
-      orderBy: { created_at: "desc" }
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+      take: 50,
     });
 
-    res.status(200).json({
-      success: true,
-      data: notifications
-    });
+    const formatted = notifications.map((n) => ({
+      id: n.id,
+      type: n.type,
+      title: labelFromType(n.type),
+      message: n.message,
+      isRead: n.is_read,
+      link: n.post_id ? `/post/${n.post_id}` : null,
+      createdAt: n.created_at,
+    }));
+
+    res.status(200).json({ success: true, data: formatted });
   } catch (error) {
-    console.error("Get notifications error:", error);
-    res.status(500).json({ success: false, message: "Failed to fetch notifications" });
+    console.error('Get notifications error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
   }
 };
 
 // ============================================================
-// PATCH /api/v1/notifications/:id/read
-// ทำเครื่องหมายว่าอ่านแล้ว (single)
+// PATCH /api/v1/notifications/:id/read — อ่านรายการเดียว
 // ============================================================
 export const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
-    const user_id = req.user.id;
+    const userId = req.user.id;
 
-    const notification = await prisma.notification.findUnique({
-      where: { id }
+    await prisma.notification.updateMany({
+      where: { id, user_id: userId },
+      data: { is_read: true },
     });
 
-    if (!notification) {
-      return res.status(404).json({ success: false, message: "Notification not found" });
-    }
-
-    if (notification.user_id !== user_id) {
-      return res.status(403).json({ success: false, message: "Forbidden" });
-    }
-
-    const updated = await prisma.notification.update({
-      where: { id },
-      data: { is_read: true }
-    });
-
-    res.status(200).json({ success: true, data: updated });
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Mark as read error:", error);
-    res.status(500).json({ success: false, message: "Failed to update notification" });
+    console.error('Mark as read error:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark notification as read' });
   }
 };
 
 // ============================================================
-// PATCH /api/v1/notifications/read-all
-// ทำเครื่องหมายว่าอ่านแจ้งเตือนทั้งหมดแล้ว
+// PATCH /api/v1/notifications/read-all — อ่านทั้งหมด
 // ============================================================
 export const markAllAsRead = async (req, res) => {
   try {
-    const user_id = req.user.id;
-
+    const userId = req.user.id;
     await prisma.notification.updateMany({
-      where: { user_id, is_read: false },
-      data: { is_read: true }
+      where: { user_id: userId, is_read: false },
+      data: { is_read: true },
     });
-
-    res.status(200).json({ success: true, message: "All notifications marked as read" });
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Mark all as read error:", error);
-    res.status(500).json({ success: false, message: "Failed to update notifications" });
+    console.error('Mark all as read error:', error);
+    res.status(500).json({ success: false, message: 'Failed to mark all as read' });
   }
 };
 
 // ============================================================
-// DELETE /api/v1/notifications/:id
-// ลบการแจ้งเตือน (ของตัวเอง)
+// DELETE /api/v1/notifications/:id — ลบรายการเดียว
 // ============================================================
 export const deleteNotification = async (req, res) => {
   try {
     const { id } = req.params;
-    const user_id = req.user.id;
+    const userId = req.user.id;
 
-    const notification = await prisma.notification.findUnique({ where: { id } });
+    await prisma.notification.deleteMany({
+      where: { id, user_id: userId },
+    });
 
-    if (!notification) {
-      return res.status(404).json({ success: false, message: "Notification not found" });
-    }
-
-    if (notification.user_id !== user_id) {
-      return res.status(403).json({ success: false, message: "Forbidden" });
-    }
-
-    await prisma.notification.delete({ where: { id } });
-
-    res.status(200).json({ success: true, message: "Notification deleted" });
+    res.status(200).json({ success: true });
   } catch (error) {
-    console.error("Delete notification error:", error);
-    res.status(500).json({ success: false, message: "Failed to delete notification" });
+    console.error('Delete notification error:', error);
+    res.status(500).json({ success: false, message: 'Failed to delete notification' });
   }
 };
+
+// Helper: แปลง type → ชื่อภาษาไทย
+function labelFromType(type) {
+  const map = {
+    LIKE:     'มีคนถูกใจโพสต์ของคุณ',
+    COMMENT:  'ความคิดเห็นใหม่',
+    FOLLOW:   'มีคนติดตามคุณ',
+    NEW_POST: 'โพสต์ใหม่จากคนที่คุณติดตาม',
+    BOOKMARK: 'มีคนบุ๊กมาร์กโพสต์ของคุณ',
+    SYSTEM:   'การแจ้งเตือนจากระบบ',
+  };
+  return map[type] || 'การแจ้งเตือน';
+}

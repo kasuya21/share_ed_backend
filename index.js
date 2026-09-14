@@ -6,6 +6,7 @@ import "dotenv/config";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDocument } from "./configs/swagger.js";
 import { initCronJobs } from "./utils/cron.js";
+import { initIO } from "./configs/socket.js";
 
 import authRoutes from "./routers/auth.router.js";
 import achievementRoutes from "./routers/achievement.router.js";
@@ -25,7 +26,14 @@ import moderatorRoutes from "./routers/moderator.router.js";
 import adminRoutes from "./routers/admin.router.js";
 import categoryRoutes from "./routers/category.router.js";
 
+import { supabase } from "./configs/supabase.config.js";
+import { prisma } from "./configs/prisma.js";
+import { socketAuth, joinOwnRoom } from "./middlewares/socket.middleware.js";
+import { securityHeaders, rateLimit, errorHandler } from "./utils/security.js";
+
 const app = express();
+app.disable("x-powered-by");
+app.use(securityHeaders);
 const PORT = process.env.PORT || 3000;
 
 const corsOptions = {
@@ -37,41 +45,28 @@ const corsOptions = {
     "https://share-ed-frontend-iota.vercel.app",
     "http://share-ed.s3-website-us-east-1.amazonaws.com",
     "https://share-ed.online"
-
   ],
   credentials: true,
 };
 
 app.use(cors(corsOptions));
-
-
 const httpServer = createServer(app);
-export const io = new Server(httpServer, {
+const io = new Server(httpServer, {
   cors: corsOptions
 });
 
-io.on("connection", (socket) => {
-  console.log(`New socket connection: ${socket.id}`);
+// เซฟ io instance ให้ notification.helper ใช้ได้ผ่าน getIO()
+initIO(io);
 
-  // ให้ client ส่ง "join" พร้อมกับ userId หลังจาก authenticate
-  socket.on("join", (userId) => {
-    if (userId) {
-      socket.join(userId);
-      console.log(`Socket ${socket.id} joined room ${userId}`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log(`Socket ${socket.id} disconnected`);
-  });
-});
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+io.use(socketAuth(supabase, prisma));
+io.on("connection", joinOwnRoom);
+app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: false, limit: "100kb", parameterLimit: 100 }));
 
 // Serve API Documentation (Swagger UI)
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
   swaggerOptions: {
-    persistAuthorization: true,   // จำ Bearer token ไว้หลัง refresh
+    persistAuthorization: false,
     displayRequestDuration: true, // แสดงเวลา response
   },
 }));
@@ -82,6 +77,7 @@ app.get("/api-docs.json", (req, res) => {
   res.send(swaggerDocument);
 });
 
+app.use("/api/v1/auth", rateLimit());
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/achievements", achievementRoutes);
 
@@ -203,6 +199,8 @@ app.get("/", (req, res) => {
 </body>
 </html>`);
 });
+
+app.use(errorHandler);
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

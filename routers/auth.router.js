@@ -1,6 +1,6 @@
 import express from "express";
 import { verifyUser, registerUser, loginUser, changePassword, logoutUser } from "../controllers/auth.controller.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { authMiddleware, provisioningAuthMiddleware } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
@@ -14,7 +14,7 @@ router.post("/login", loginUser);
 router.post("/logout", authMiddleware, logoutUser);
 
 // GET /api/v1/auth/me - Verify session token (Google OAuth & standard login)
-router.get("/me", authMiddleware, verifyUser);
+router.get("/me", provisioningAuthMiddleware, verifyUser);
 
 // PUT /api/v1/auth/change-password - Change user password
 router.put("/change-password", authMiddleware, changePassword);

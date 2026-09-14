@@ -26,11 +26,17 @@ async function handleMediaFiles(files, postId) {
   for (const file of files) {
     const isPdf = file.mimetype === "application/pdf";
 
+    // file.originalname ถูก decode เป็น UTF-8 แล้วโดย upload.middleware.js
+    const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, "").trim();
+
     const uploadOptions = isPdf
       ? { 
           folder: `share-ed/posts/${postId}/pdfs`, 
           resource_type: "raw",
-          public_id: file.originalname.replace(/\.[^/.]+$/, "").replace(/\s+/g, '_') + ".pdf"
+          use_filename: true,
+          unique_filename: false,
+          filename_override: file.originalname,  // บอก Cloudinary ว่าชื่อไฟล์ต้นฉบับคืออะไร
+          public_id: nameWithoutExt + ".pdf"
         }
       : {
           folder: `share-ed/posts/${postId}/media`,
@@ -439,6 +445,13 @@ export const updatePost = async (req, res) => {
         success: false,
         message: "คุณไม่มีสิทธิ์แก้ไขโพสต์ของผู้อื่น"
       });
+    }
+
+    if (!["ACTIVE", "DRAFT"].includes(post.post_status)) {
+      return res.status(403).json({ message: "Removed or moderated posts cannot be edited" });
+    }
+    if (post_status !== undefined && !["ACTIVE", "DRAFT"].includes(post_status)) {
+      return res.status(400).json({ message: "Invalid post status" });
     }
 
     // 1. ตรวจสอบไฟล์มัลติมีเดียชนิดต่างๆ
