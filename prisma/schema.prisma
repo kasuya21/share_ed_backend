@@ -158,6 +158,7 @@ model Post {
   tags      PostTag[]
   views     PostView[]
   reports   Report[]
+  notifications Notification[]
 
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
@@ -329,9 +330,11 @@ model Notification {
 
   message String
 
+  post_id String?
   is_read Boolean @default(false)
 
   user User @relation(fields: [user_id], references: [id])
+  post Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
 

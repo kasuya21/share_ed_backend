@@ -1,7 +1,8 @@
+import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
 
-export const authMiddleware = async (req, res, next) => {
+export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -11,11 +12,13 @@ export const authMiddleware = async (req, res, next) => {
       });
     }
 
-    const token = authHeader.replace("Bearer ", "");
+    const token = bearerToken(authHeader);
+
+    if (!token) return res.status(401).json({ message: "Invalid authorization header" });
 
     const { data, error } = await supabase.auth.getUser(token);
 
-    if (error || !data.user) {
+    if (error || !data?.user) {
       return res.status(401).json({
         message: "Invalid or expired token"
       });
@@ -26,6 +29,10 @@ export const authMiddleware = async (req, res, next) => {
       where: { id: data.user.id },
       select: { status: true }
     });
+
+    if (!dbUser && !allowProvisioning) {
+      return res.status(403).json({ message: "Complete account registration first" });
+    }
 
     if (dbUser && (dbUser.status === "BANNED" || dbUser.status === "SUSPENDED")) {
       return res.status(403).json({
@@ -45,3 +52,6 @@ export const authMiddleware = async (req, res, next) => {
     });
   }
 };
+
+export const authMiddleware = createAuthMiddleware();
+export const provisioningAuthMiddleware = createAuthMiddleware({ allowProvisioning: true });

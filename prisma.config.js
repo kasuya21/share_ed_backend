@@ -13,4 +13,3 @@ export default defineConfig({
     path: "prisma/migrations",
   },
 });
-console.log(process.env.DATABASE_URL);
