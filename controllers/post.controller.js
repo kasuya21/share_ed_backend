@@ -276,7 +276,7 @@ export const createPost = async (req, res) => {
     const { title, summary, content, education_level, category_id, post_status, tags } = req.body;
     const author_id = req.user.id;
 
-    if (!title || !content || !education_level) {
+    if (!title || !summary || !education_level) {
       return res.status(400).json({
         success: false,
         message: "หัวข้อ, เนื้อหา และระดับชั้นการศึกษา จำเป็นต้องระบุ"
