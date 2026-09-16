@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { logError, logWarn } from "../utils/logger.js";
 import { validatePostFields, validateNewPost, POST_MEDIA_TYPES } from "../utils/post-validation.js";
 import { prisma } from "../configs/prisma.js";
@@ -42,10 +43,29 @@ async function preparePostTags(values) {
     .filter(value => typeof value === "string" && value.trim())
     .map(value => value.trim())
     .map(value => value.startsWith("#") ? value : `#${value}`))];
-  const tags = await mapWithConcurrency(names, 5, tag_name => prisma.tag.upsert({
-    where: { tag_name }, update: {}, create: { tag_name },
-  }));
-  return tags.map(tag => ({ tag_id: tag.id }));
+  if (names.length === 0) return [];
+
+  const existingTags = await prisma.tag.findMany({
+    where: { tag_name: { in: names } }
+  });
+  const existingMap = new Map(existingTags.map(t => [t.tag_name, t]));
+  const missingNames = names.filter(name => !existingMap.has(name));
+
+  let createdTags = [];
+  if (missingNames.length > 0) {
+    createdTags = await Promise.all(
+      missingNames.map(tag_name =>
+        prisma.tag.upsert({
+          where: { tag_name },
+          update: {},
+          create: { tag_name }
+        })
+      )
+    );
+  }
+
+  const allTags = [...existingTags, ...createdTags];
+  return allTags.map(tag => ({ tag_id: tag.id }));
 }
 
 export const POST_CARD_SELECT = {
@@ -387,12 +407,13 @@ export const createPost = async (req, res) => {
       }
     }
 
-    const postTagConnects = await preparePostTags(parsedTags);
+    const postId = crypto.randomUUID();
+    const finalStatus = post_status === "ACTIVE" ? "ACTIVE" : "DRAFT";
 
-    // 4. อัปโหลดรูปหน้าปกขึ้น Cloudinary
-    stage = "cover_upload";
-    let cover_image = null;
-    if (coverFiles && coverFiles.length > 0) {
+    // 4. ขนานการอัปโหลดไฟล์ (หน้าปก + เอกสาร/รูปภาพ Cloudinary) และเตรียมแท็กไปพร้อมกัน
+    stage = "parallel_upload_and_prepare";
+    const coverPromise = (async () => {
+      if (!coverFiles || coverFiles.length === 0) return null;
       const uploadResult = await uploadToCloudinary(coverFiles[0].buffer, {
         folder: "share-ed/posts/covers",
         transformation: [
@@ -400,15 +421,53 @@ export const createPost = async (req, res) => {
           { quality: "auto", fetch_format: "auto" }
         ]
       });
-      cover_image = uploadResult.secure_url;
-    }
+      return uploadResult.secure_url;
+    })();
 
-    // 5. บันทึกโพสต์
-    const finalStatus = post_status === "ACTIVE" ? "ACTIVE" : "DRAFT";
+    const mediaPromise = (async () => {
+      if (!mediaFiles || mediaFiles.length === 0) return [];
+      return mapWithConcurrency(mediaFiles, 4, async file => {
+        const isPdf = file.mimetype === "application/pdf";
+        const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, "").trim();
 
+        const uploadOptions = isPdf
+          ? {
+            folder: `share-ed/posts/${postId}/pdfs`,
+            resource_type: "raw",
+            use_filename: true,
+            unique_filename: false,
+            filename_override: file.originalname,
+            public_id: nameWithoutExt + ".pdf"
+          }
+          : {
+            folder: `share-ed/posts/${postId}/media`,
+            transformation: [
+              { width: 1200, crop: "limit" },
+              { quality: "auto", fetch_format: "auto" },
+            ],
+          };
+
+        const result = await uploadToCloudinary(file.buffer, uploadOptions);
+        return {
+          media_url: result.secure_url,
+          media_type: isPdf ? "PDF" : "IMAGE",
+        };
+      });
+    })();
+
+    const tagsPromise = preparePostTags(parsedTags);
+
+    const [cover_image, mediaData, postTagConnects] = await Promise.all([
+      coverPromise,
+      mediaPromise,
+      tagsPromise
+    ]);
+
+    // 5. บันทึกโพสต์ แท็ก และไฟล์แนบในคำสั่งเดียว (Single atomic query)
     stage = "database_create";
     const post = await prisma.post.create({
       data: {
+        id: postId,
         title,
         summary: summary || "",
         content,
@@ -419,6 +478,9 @@ export const createPost = async (req, res) => {
         cover_image,
         tags: {
           create: postTagConnects
+        },
+        media: {
+          create: mediaData
         }
       },
       include: {
@@ -427,43 +489,44 @@ export const createPost = async (req, res) => {
         },
         tags: {
           include: { tag: true }
-        }
+        },
+        media: true
       }
     });
 
-    // 6. อัปโหลดไฟล์แนบเพิ่มเติม
-    stage = "media_upload";
-    if (mediaFiles && mediaFiles.length > 0) {
-      await handleMediaFiles(mediaFiles, post.id);
-    }
-
-    // 🔔 แจ้งเตือน Followers เมื่อโพสต์ถูก ACTIVE ทันที
-    stage = "publish_side_effects";
+    // 🔔 แจ้งเตือน Followers และคำนวณ Achievement แบบ Background (Non-blocking)
     if (post.post_status === "ACTIVE") {
-      const authorUser = await prisma.user.findUnique({
-        where: { id: author_id },
-        select: { username: true }
-      });
-      const followers = await prisma.follow.findMany({
-        where: { following_id: author_id },
-        select: { follower_id: true }
-      });
-      await Promise.all(
-        followers.map(f =>
-          createNotification(
-            f.follower_id,
-            "NEW_POST",
-            `${authorUser.username} ได้เผยแพร่ผลงานใหม่: "${post.title}"`,
-            post.id
-          )
-        )
-      );
+      platformStatsCache.clear();
+      trendingPostsCache.clear();
+      mostLikedPostsCache.clear();
 
-      // 🏆 อัปเดต Achievement: POSTS_CREATED
-      const totalActivePosts = await prisma.post.count({
-        where: { author_id, post_status: "ACTIVE" }
-      });
-      await updateAchievementProgress(author_id, "POSTS_CREATED", totalActivePosts);
+      (async () => {
+        try {
+          const authorUsername = post.author?.username;
+          const followers = await prisma.follow.findMany({
+            where: { following_id: author_id },
+            select: { follower_id: true }
+          });
+          await Promise.all(
+            followers.map(f =>
+              createNotification(
+                f.follower_id,
+                "NEW_POST",
+                `${authorUsername} ได้เผยแพร่ผลงานใหม่: "${post.title}"`,
+                post.id
+              )
+            )
+          );
+
+          // 🏆 อัปเดต Achievement: POSTS_CREATED
+          const totalActivePosts = await prisma.post.count({
+            where: { author_id, post_status: "ACTIVE" }
+          });
+          await updateAchievementProgress(author_id, "POSTS_CREATED", totalActivePosts);
+        } catch (err) {
+          logWarn("post.publish_side_effects_failed", err, req, { postId: post.id });
+        }
+      })();
     }
 
     stage = "respond";
@@ -688,6 +751,12 @@ export const updatePost = async (req, res) => {
       await updateAchievementProgress(user_id, "POSTS_CREATED", totalActivePosts);
     }
 
+    if (updatedPost.post_status === "ACTIVE" || wasActive) {
+      platformStatsCache.clear();
+      trendingPostsCache.clear();
+      mostLikedPostsCache.clear();
+    }
+
     res.status(200).json({
       success: true,
       message: "อัปเดตโพสต์สำเร็จ",
@@ -727,6 +796,10 @@ export const deletePost = async (req, res) => {
       where: { id },
       data: { post_status: "DELETED" }
     });
+
+    platformStatsCache.clear();
+    trendingPostsCache.clear();
+    mostLikedPostsCache.clear();
 
     res.status(200).json({ success: true, message: "ลบโพสต์สำเร็จ" });
   } catch (error) {
