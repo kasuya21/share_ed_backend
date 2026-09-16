@@ -6,6 +6,12 @@ import { updateAchievementProgress } from "../utils/achievement.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
+import { MemoryCache } from "../utils/cache.helper.js";
+
+// In-Memory Caches for heavy home page queries
+export const trendingPostsCache = new MemoryCache(45 * 1000);
+export const mostLikedPostsCache = new MemoryCache(45 * 1000);
+export const platformStatsCache = new MemoryCache(60 * 1000);
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
@@ -781,6 +787,12 @@ export const getUserPosts = async (req, res) => {
 export const getTrendingPosts = async (req, res) => {
   try {
     const { level } = req.query; // MIDDLE_SCHOOL, HIGH_SCHOOL, UNIVERSITY
+    const cacheKey = level || "ALL";
+    const cached = trendingPostsCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const lastWeek = new Date();
     lastWeek.setDate(lastWeek.getDate() - 7);
 
@@ -812,6 +824,7 @@ export const getTrendingPosts = async (req, res) => {
         orderBy: { view_count: "desc" },
         take: 3
       });
+      trendingPostsCache.set(cacheKey, fallbackPosts);
       return res.status(200).json({ success: true, data: fallbackPosts });
     }
 
@@ -827,6 +840,7 @@ export const getTrendingPosts = async (req, res) => {
 
     const sortedPosts = posts.sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id));
 
+    trendingPostsCache.set(cacheKey, sortedPosts);
     res.status(200).json({
       success: true,
       data: sortedPosts
@@ -846,6 +860,11 @@ export const getTrendingPosts = async (req, res) => {
 // ============================================================
 export const getMostLikedPosts = async (req, res) => {
   try {
+    const cached = mostLikedPostsCache.get("most_liked");
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const posts = await prisma.post.findMany({
       where: {
         post_status: "ACTIVE"
@@ -858,6 +877,8 @@ export const getMostLikedPosts = async (req, res) => {
       },
       take: 10
     });
+
+    mostLikedPostsCache.set("most_liked", posts);
 
     res.status(200).json({
       success: true,
@@ -878,17 +899,26 @@ export const getMostLikedPosts = async (req, res) => {
 // ============================================================
 export const getPlatformStats = async (req, res) => {
   try {
+    const cached = platformStatsCache.get("stats");
+    if (cached) {
+      return res.status(200).json({ success: true, data: cached });
+    }
+
     const [totalPosts, totalSharers] = await Promise.all([
       prisma.post.count({ where: { post_status: 'ACTIVE' } }),
       prisma.user.count(),
     ]);
 
+    const data = {
+      totalPosts,
+      totalSharers
+    };
+
+    platformStatsCache.set("stats", data);
+
     res.status(200).json({
       success: true,
-      data: {
-        totalPosts,
-        totalSharers
-      }
+      data
     });
   } catch (error) {
     logError("controllers.getPlatformStats", error, req);

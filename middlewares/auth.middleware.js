@@ -3,6 +3,10 @@ import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
 import { verifyAccessToken } from "../utils/auth-token.js";
+import { MemoryCache } from "../utils/cache.helper.js";
+
+// Cache user status & role for 30s to avoid repeated DB hits on every request
+export const userStatusCache = new MemoryCache(30 * 1000);
 
 export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => async (req, res, next) => {
   try {
@@ -27,11 +31,17 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
       });
     }
 
-    // Check if user is BANNED or SUSPENDED in database
-    const dbUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { status: true, role: true }
-    });
+    // Check if user is BANNED or SUSPENDED in database (using fast memory cache)
+    let dbUser = userStatusCache.get(user.id);
+    if (!dbUser) {
+      dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { status: true, role: true }
+      });
+      if (dbUser) {
+        userStatusCache.set(user.id, dbUser);
+      }
+    }
 
     if (!dbUser && !allowProvisioning) {
       return res.status(403).json({ message: "Complete account registration first" });

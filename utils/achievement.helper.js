@@ -1,24 +1,19 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "./notification.helper.js";
 import { logError } from "./logger.js";
+import { MemoryCache } from "./cache.helper.js";
 
 // In-Memory Cache for achievement definitions (5 minutes TTL)
-const achievementTypeCache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const achievementTypeCache = new MemoryCache(5 * 60 * 1000);
 
 async function getAchievementsByType(achievementType) {
-  if (process.env.NODE_ENV !== "test") {
-    const cached = achievementTypeCache.get(achievementType);
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-      return cached.data;
-    }
-  }
+  const cached = achievementTypeCache.get(achievementType);
+  if (cached) return cached;
+
   const data = await prisma.achievement.findMany({
     where: { achievement_type: achievementType }
   });
-  if (process.env.NODE_ENV !== "test") {
-    achievementTypeCache.set(achievementType, { data, timestamp: Date.now() });
-  }
+  achievementTypeCache.set(achievementType, data);
   return data;
 }
 

@@ -1,5 +1,8 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
+import { MemoryCache } from "../utils/cache.helper.js";
+
+export const categoriesCache = new MemoryCache(60 * 1000); // 60s TTL
 
 // ============================================================
 // GET /api/v1/categories
@@ -7,6 +10,14 @@ import { prisma } from "../configs/prisma.js";
 // ============================================================
 export const getAllCategories = async (req, res) => {
   try {
+    const cached = categoriesCache.get("all");
+    if (cached) {
+      return res.status(200).json({
+        success: true,
+        data: cached
+      });
+    }
+
     const categories = await prisma.category.findMany({
       include: {
         _count: {
@@ -17,6 +28,8 @@ export const getAllCategories = async (req, res) => {
         name: "asc"
       }
     });
+
+    categoriesCache.set("all", categories);
 
     res.status(200).json({
       success: true,
@@ -53,6 +66,8 @@ export const createCategory = async (req, res) => {
     const newCategory = await prisma.category.create({
       data: { name: trimmedName }
     });
+
+    categoriesCache.clear();
 
     res.status(201).json({
       success: true,
@@ -98,6 +113,8 @@ export const updateCategory = async (req, res) => {
       data: { name: trimmedName }
     });
 
+    categoriesCache.clear();
+
     res.status(200).json({
       success: true,
       message: "Category updated successfully",
@@ -132,6 +149,8 @@ export const deleteCategory = async (req, res) => {
     await prisma.category.delete({
       where: { id }
     });
+
+    categoriesCache.clear();
 
     res.status(200).json({
       success: true,
