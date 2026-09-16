@@ -56,7 +56,9 @@ export const followUser = async (req, res) => {
     await createNotification(
       following_id,
       "NEW_FOLLOWER",
-      `${followerUser.username} started following you`
+      `${followerUser.username} started following you`,
+      null,
+      follower_id
     );
 
     // 🏆 อัปเดต Achievement: FOLLOWERS_COUNT

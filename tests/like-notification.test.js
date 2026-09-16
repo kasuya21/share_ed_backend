@@ -6,6 +6,7 @@ process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/test";
 const { prisma } = await import("../configs/prisma.js");
 const { initIO } = await import("../configs/socket.js");
 const {
+  createNotification,
   createLikeNotification,
   removeLikeNotification,
   formatNotification,
@@ -103,6 +104,22 @@ test("legacy notifications remain readable during the NEW_LIKE transition", () =
   assert.equal(legacy.type, "NEW_LIKE");
   assert.equal(legacy.actorId, null);
   assert.equal(legacy.title, "มีคนถูกใจโพสต์ของคุณ");
+});
+
+test("follow notification includes actor identity and profile link", async (t) => {
+  const events = socketRecorder(t);
+  const created = replace(t, prisma.notification, "create", async ({ data }) => ({
+    id: "follow-notification",
+    ...data,
+    created_at: new Date("2026-09-17T10:00:00.000Z"),
+  }));
+
+  await createNotification("recipient", "NEW_FOLLOWER", "alice started following you", null, "actor");
+
+  assert.equal(created.mock.calls[0].arguments[0].data.actor_id, "actor");
+  assert.equal(events.length, 1);
+  assert.equal(events[0].payload.actorId, "actor");
+  assert.equal(events[0].payload.link, "/profile/actor");
 });
 
 test("toggle Like, Unlike and re-Like keeps database and socket state aligned", async (t) => {

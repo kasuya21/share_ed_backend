@@ -24,6 +24,11 @@ export function labelFromType(type) {
 }
 
 export function formatNotification(notification) {
+  const link = notification.post_id
+    ? `/post/${notification.post_id}`
+    : notification.type === "NEW_FOLLOWER" && notification.actor_id
+      ? `/profile/${notification.actor_id}`
+      : null;
   return {
     id: notification.id,
     type: notification.type,
@@ -34,7 +39,7 @@ export function formatNotification(notification) {
     message: notification.message,
     isRead: notification.is_read,
     createdAt: notification.created_at,
-    link: notification.post_id ? `/post/${notification.post_id}` : null,
+    link,
     actor: notification.actor ? {
       id: notification.actor.id,
       username: notification.actor.username,
@@ -58,16 +63,16 @@ function emitToRecipient(recipientId, event, payload) {
   }
 }
 
-export const createNotification = async (userId, type, message, postId = null) => {
+export const createNotification = async (userId, type, message, postId = null, actorId = null) => {
   try {
     const notification = await prisma.notification.create({
-      data: { user_id: userId, type, message, post_id: postId, is_read: false },
+      data: { user_id: userId, type, message, post_id: postId, actor_id: actorId, is_read: false },
     });
     emitToRecipient(userId, "new_notification", formatNotification(notification));
     return notification;
   } catch (error) {
     logError("notification.create_failed", error, undefined, {
-      recipientId: userId, notificationType: type, postId,
+      recipientId: userId, actorId, notificationType: type, postId,
     });
     return null;
   }
