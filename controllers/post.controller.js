@@ -218,6 +218,7 @@ export const getAllPosts = async (req, res) => {
       prisma.post.count({ where }),
     ]);
 
+    res.setHeader?.("Cache-Control", "public, max-age=15, stale-while-revalidate=45");
     res.status(200).json({
       success: true,
       data: posts,
@@ -859,6 +860,7 @@ export const getUserPosts = async (req, res) => {
 // ============================================================
 export const getTrendingPosts = async (req, res) => {
   try {
+    res.setHeader?.("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
     const { level } = req.query; // MIDDLE_SCHOOL, HIGH_SCHOOL, UNIVERSITY
     const cacheKey = level || "ALL";
     const cached = trendingPostsCache.get(cacheKey);
@@ -933,6 +935,7 @@ export const getTrendingPosts = async (req, res) => {
 // ============================================================
 export const getMostLikedPosts = async (req, res) => {
   try {
+    res.setHeader?.("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
     const cached = mostLikedPostsCache.get("most_liked");
     if (cached) {
       return res.status(200).json({ success: true, data: cached });
@@ -972,6 +975,7 @@ export const getMostLikedPosts = async (req, res) => {
 // ============================================================
 export const getPlatformStats = async (req, res) => {
   try {
+    res.setHeader?.("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
     const cached = platformStatsCache.get("stats");
     if (cached) {
       return res.status(200).json({ success: true, data: cached });

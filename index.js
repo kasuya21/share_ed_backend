@@ -2,6 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import compression from "compression";
 import "dotenv/config";
 import { initCronJobs } from "./utils/cron.js";
 import { initIO } from "./configs/socket.js";
@@ -56,11 +57,22 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(compression({
+  threshold: 1024,
+  filter: (req, res) => {
+    if (req.headers["x-no-compression"]) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
+
 const httpServer = createServer(app);
 httpServer.on("error", error => {
   logError("server.http.error", error);
   process.exitCode = 1;
 });
+
 const io = new Server(httpServer, {
   cors: corsOptions
 });

@@ -10,6 +10,7 @@ export const categoriesCache = new MemoryCache(60 * 1000); // 60s TTL
 // ============================================================
 export const getAllCategories = async (req, res) => {
   try {
+    res.setHeader?.("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
     const cached = categoriesCache.get("all");
     if (cached) {
       return res.status(200).json({
