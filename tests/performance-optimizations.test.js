@@ -78,3 +78,22 @@ test("access token verification uses signed claims", async () => {
   assert.deepEqual(calls, ["signed-token"]);
   assert.equal(result.user.id, "user-1");
 });
+
+test("liking a post does not recount all author likes across all posts", async t => {
+  const { toggleLike } = await import("../controllers/like.controller.js");
+  replace(t, prisma.post, "findUnique", async () => ({ id: "post-1", author_id: "author-1", post_status: "ACTIVE" }));
+  replace(t, prisma.like, "findUnique", async () => null);
+  replace(t, prisma.like, "create", async () => ({ id: "like-1" }));
+  const likeCount = replace(t, prisma.like, "count", async () => 0);
+  replace(t, prisma.user, "findUnique", async () => ({ id: "user-1", username: "user" }));
+  const achievementFind = replace(t, prisma.achievement, "findMany", async () => []);
+  replace(t, prisma.notification, "create", async () => ({ id: "notif-1" }));
+
+  const result = response();
+  await toggleLike({ params: { postId: "post-1" }, user: { id: "user-1" } }, result.res);
+
+  assert.equal(result.body.isLiked, true);
+  assert.equal(likeCount.mock.callCount(), 0);
+  assert.deepEqual(achievementFind.mock.calls[0].arguments[0].where, { achievement_type: "POST_LIKES" });
+});
+

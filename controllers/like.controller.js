@@ -1,7 +1,7 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createLikeNotification, removeLikeNotification } from "../utils/notification.helper.js";
-import { updateAchievementProgress } from "../utils/achievement.helper.js";
+import { incrementAchievementProgress } from "../utils/achievement.helper.js";
 
 export const toggleLike = async (req, res) => {
   try {
@@ -59,13 +59,10 @@ export const toggleLike = async (req, res) => {
           actorId: userId,
           postId,
         });
-      }
 
-      // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์)
-      const totalLikesReceived = await prisma.like.count({
-        where: { post: { author_id: post.author_id } }
-      });
-      await updateAchievementProgress(post.author_id, "POST_LIKES", totalLikesReceived);
+        // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์ แบบเพิ่มทีละ 1 โดยไม่ต้อง query ค้นหาโพสต์และนับ like ทั้งหมดใหม่)
+        await incrementAchievementProgress(post.author_id, "POST_LIKES", 1);
+      }
 
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });
     }
