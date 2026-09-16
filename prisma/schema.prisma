@@ -170,6 +170,8 @@ model Post {
   @@index([created_at])
   @@index([like_count])
   @@index([view_count])
+  @@index([post_status, created_at])
+  @@index([post_status, view_count])
   @@map("posts")
 }
 
@@ -343,6 +345,7 @@ model Notification {
   created_at DateTime @default(now())
 
   @@index([user_id])
+  @@index([user_id, created_at])
   @@index([actor_id])
   @@index([user_id, actor_id, post_id, type])
   @@index([is_read])
@@ -454,6 +457,7 @@ model PostView {
   viewed_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+  @@index([viewed_at, post_id])
   @@map("post_views")
 }
 

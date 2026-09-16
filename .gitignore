@@ -10,4 +10,5 @@ tests
 !tests/
 tests/*
 !tests/like-notification.test.js
+!tests/performance-optimizations.test.js
 scripts

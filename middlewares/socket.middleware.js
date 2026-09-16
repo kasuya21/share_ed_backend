@@ -1,16 +1,17 @@
 import { bearerToken } from "../utils/security.js";
 import { logWarn } from "../utils/logger.js";
+import { verifyAccessToken } from "../utils/auth-token.js";
 
 export function socketAuth(supabase, prisma) {
   return async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token || bearerToken(socket.handshake.headers.authorization);
       if (typeof token !== "string" || !token || token.length > 8192) throw new Error("Missing or invalid socket token");
-      const { data, error } = await supabase.auth.getUser(token);
-      if (error || !data?.user) throw new Error("Socket token verification failed");
-      const user = await prisma.user.findUnique({ where: { id: data.user.id }, select: { status: true } });
+      const { user: tokenUser, error } = await verifyAccessToken(supabase, token);
+      if (error || !tokenUser) throw new Error("Socket token verification failed");
+      const user = await prisma.user.findUnique({ where: { id: tokenUser.id }, select: { status: true } });
       if (!user || user.status !== "ACTIVE") throw new Error("Socket account missing or inactive");
-      socket.data.userId = data.user.id;
+      socket.data.userId = tokenUser.id;
       next();
     } catch (error) {
       logWarn("socket.authentication_failed", error, {
