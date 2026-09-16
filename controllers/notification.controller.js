@@ -9,7 +9,10 @@ export const getNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
     const notifications = await prisma.notification.findMany({
-      where: { user_id: userId },
+      where: {
+        user_id: userId,
+        type: { not: "BOOKMARK_REMOVED" }
+      },
       orderBy: { created_at: 'desc' },
       take: 50,
       include: {

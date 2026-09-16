@@ -1,6 +1,5 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
-import { createNotification } from "../utils/notification.helper.js";
 
 export const toggleBookmark = async (req, res) => {
   try {
@@ -22,12 +21,8 @@ export const toggleBookmark = async (req, res) => {
     });
 
     if (existingBookmark) {
-      // Remove bookmark
+      // Remove bookmark (no notification created)
       await prisma.bookmark.delete({ where: { id: existingBookmark.id } });
-
-      // 🔔 แจ้งเจ้าของตัวเองว่าเอา Bookmark ออกแล้ว (per Requirement)
-      const post = await prisma.post.findUnique({ where: { id: postId }, select: { title: true } });
-      await createNotification(userId, "BOOKMARK_REMOVED", `You removed "${post?.title}" from your bookmarks`);
 
       return res.status(200).json({ success: true, message: "การยกเลิกสำเร็จ", isBookmarked: false });
     } else {
@@ -49,7 +44,7 @@ export const toggleBookmark = async (req, res) => {
 export const getBookmarks = async (req, res) => {
   try {
     const userId = req.user.id;
-   // get all bookmark by user id
+    // get all bookmark by user id
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId, post: { post_status: "ACTIVE" } },
       include: {
