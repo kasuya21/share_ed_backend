@@ -1,6 +1,6 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
-import { createNotification } from "../utils/notification.helper.js";
+import { createLikeNotification, removeLikeNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
 
 export const toggleLike = async (req, res) => {
@@ -30,6 +30,11 @@ export const toggleLike = async (req, res) => {
           post_id: postId
         }
       });
+      await removeLikeNotification({
+        recipientId: post.author_id,
+        actorId: userId,
+        postId,
+      });
       return res.status(200).json({ success: true, message: "ยกเลิกการถูกใจแล้ว", isLiked: false });
     } else {
       // Like
@@ -49,15 +54,11 @@ export const toggleLike = async (req, res) => {
 
       // 🔔 แจ้งเจ้าของโพสต์ (ไม่แจ้งตัวเอง)
       if (post.author_id !== userId) {
-        const liker = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { username: true }
+        await createLikeNotification({
+          recipientId: post.author_id,
+          actorId: userId,
+          postId,
         });
-        await createNotification(
-          post.author_id,
-          "NEW_LIKE",
-          `${liker.username} liked your post "${post.title}"`
-        );
       }
 
       // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์)

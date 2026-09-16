@@ -43,6 +43,7 @@ enum NotificationTypeCode {
   // Social
   NEW_FOLLOWER
   NEW_LIKE
+  LIKE
   NEW_COMMENT
   NEW_POST
   // Bookmark
@@ -110,7 +111,8 @@ model User {
   followers Follow[] @relation("followers")
   following Follow[] @relation("following")
 
-  notifications Notification[]
+  notifications        Notification[] @relation("NotificationRecipient")
+  notification_actions Notification[] @relation("NotificationActor")
 
   unlocked_items    UserUnlockedItem[]
   user_achievements UserAchievement[]
@@ -151,13 +153,13 @@ model Post {
 
   cover_image String?
 
-  media     PostMedia[]
-  comments  Comment[]
-  likes     Like[]
-  bookmarks Bookmark[]
-  tags      PostTag[]
-  views     PostView[]
-  reports   Report[]
+  media         PostMedia[]
+  comments      Comment[]
+  likes         Like[]
+  bookmarks     Bookmark[]
+  tags          PostTag[]
+  views         PostView[]
+  reports       Report[]
   notifications Notification[]
 
   created_at DateTime @default(now())
@@ -330,15 +332,19 @@ model Notification {
 
   message String
 
-  post_id String?
-  is_read Boolean @default(false)
+  post_id  String?
+  actor_id String?
+  is_read  Boolean @default(false)
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  user  User  @relation("NotificationRecipient", fields: [user_id], references: [id])
+  actor User? @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: SetNull)
+  post  Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
 
   @@index([user_id])
+  @@index([actor_id])
+  @@index([user_id, actor_id, post_id, type])
   @@index([is_read])
   @@map("notifications")
 }

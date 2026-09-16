@@ -1,5 +1,6 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from '../configs/prisma.js';
+import { formatNotification } from '../utils/notification.helper.js';
 
 // ============================================================
 // GET /api/v1/notifications — ดึงการแจ้งเตือนของ user ที่ login อยู่
@@ -11,17 +12,12 @@ export const getNotifications = async (req, res) => {
       where: { user_id: userId },
       orderBy: { created_at: 'desc' },
       take: 50,
+      include: {
+        actor: { select: { id: true, username: true, profile_image: true } },
+      },
     });
 
-    const formatted = notifications.map((n) => ({
-      id: n.id,
-      type: n.type,
-      title: labelFromType(n.type),
-      message: n.message,
-      isRead: n.is_read,
-      link: n.post_id ? `/post/${n.post_id}` : null,
-      createdAt: n.created_at,
-    }));
+    const formatted = notifications.map(formatNotification);
 
     res.status(200).json({ success: true, data: formatted });
   } catch (error) {
@@ -85,16 +81,3 @@ export const deleteNotification = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete notification' });
   }
 };
-
-// Helper: แปลง type → ชื่อภาษาไทย
-function labelFromType(type) {
-  const map = {
-    LIKE:     'มีคนถูกใจโพสต์ของคุณ',
-    COMMENT:  'ความคิดเห็นใหม่',
-    FOLLOW:   'มีคนติดตามคุณ',
-    NEW_POST: 'โพสต์ใหม่จากคนที่คุณติดตาม',
-    BOOKMARK: 'มีคนบุ๊กมาร์กโพสต์ของคุณ',
-    SYSTEM:   'การแจ้งเตือนจากระบบ',
-  };
-  return map[type] || 'การแจ้งเตือน';
-}
