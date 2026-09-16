@@ -1,3 +1,4 @@
+import { validatePassword } from "../utils/password-validation.js";
 import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
@@ -24,10 +25,12 @@ export const registerUser = async (req, res) => {
     }
 
     // 2. ความปลอดภัยของรหัสผ่าน
-    if (typeof password !== "string" || password.length < 8 || password.length > 128) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "รหัสผ่านต้องมีความยาวไม่น้อยกว่า 8 ตัวอักษร" 
+    const passwordErrors = validatePassword(password);
+    if (passwordErrors.length) {
+      return res.status(400).json({
+        success: false,
+        message: passwordErrors.map(error => error.message).join("; "),
+        errors: { password: passwordErrors },
       });
     }
 
@@ -348,8 +351,13 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ success: false, message: "กรุณากรอกรหัสผ่านใหม่และการยืนยัน" });
     }
 
-    if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 128) {
-      return res.status(400).json({ success: false, message: "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร" });
+    const passwordErrors = validatePassword(newPassword);
+    if (passwordErrors.length) {
+      return res.status(400).json({
+        success: false,
+        message: passwordErrors.map(error => error.message).join("; "),
+        errors: { newPassword: passwordErrors },
+      });
     }
 
     if (newPassword !== confirmNewPassword) {
