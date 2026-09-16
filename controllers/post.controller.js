@@ -1,3 +1,4 @@
+import { validatePostFields, validateNewPost, POST_MEDIA_TYPES } from "../utils/post-validation.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
@@ -6,7 +7,7 @@ import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
-const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "application/pdf"];
+const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
 
 // ─── Helper: Upload a single buffer to Cloudinary ───
 async function uploadToCloudinary(fileBuffer, options = {}) {
@@ -30,21 +31,21 @@ async function handleMediaFiles(files, postId) {
     const nameWithoutExt = file.originalname.replace(/\.[^/.]+$/, "").trim();
 
     const uploadOptions = isPdf
-      ? { 
-          folder: `share-ed/posts/${postId}/pdfs`, 
-          resource_type: "raw",
-          use_filename: true,
-          unique_filename: false,
-          filename_override: file.originalname,  // บอก Cloudinary ว่าชื่อไฟล์ต้นฉบับคืออะไร
-          public_id: nameWithoutExt + ".pdf"
-        }
+      ? {
+        folder: `share-ed/posts/${postId}/pdfs`,
+        resource_type: "raw",
+        use_filename: true,
+        unique_filename: false,
+        filename_override: file.originalname,  // บอก Cloudinary ว่าชื่อไฟล์ต้นฉบับคืออะไร
+        public_id: nameWithoutExt + ".pdf"
+      }
       : {
-          folder: `share-ed/posts/${postId}/media`,
-          transformation: [
-            { width: 1200, crop: "limit" },
-            { quality: "auto", fetch_format: "auto" },
-          ],
-        };
+        folder: `share-ed/posts/${postId}/media`,
+        transformation: [
+          { width: 1200, crop: "limit" },
+          { quality: "auto", fetch_format: "auto" },
+        ],
+      };
 
     const result = await uploadToCloudinary(file.buffer, uploadOptions);
 
@@ -273,40 +274,29 @@ export const getPostById = async (req, res) => {
 // ============================================================
 export const createPost = async (req, res) => {
   try {
-    const { title, summary, content, education_level, category_id, post_status, tags } = req.body;
+    const { content = "", post_status, tags } = req.body || {};
+    const validation = validateNewPost(req.body, req.files);
+    const { title, summary, education_level, category_id } = validation.values;
     const author_id = req.user.id;
 
-    if (!title || !summary || !education_level) {
+    if (!validation.valid) {
       return res.status(400).json({
         success: false,
-        message: "หัวข้อ, เนื้อหา และระดับชั้นการศึกษา จำเป็นต้องระบุ"
+        message: "กรุณาตรวจสอบข้อมูลโพสต์",
+        errors: validation.errors,
       });
     }
 
-    // 1. ตรวจสอบชนิดไฟล์หน้าปกและไฟล์แนบ
-    const coverFiles = req.files?.cover_image;
-    if (coverFiles && coverFiles.length > 0) {
-      if (coverFiles[0].mimetype === "application/pdf" || !ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
-        return res.status(400).json({
-          success: false,
-          message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG)"
-        });
-      }
-    }
-
-    const mediaFiles = req.files?.media_files;
-    if (mediaFiles && mediaFiles.length > 0) {
-      for (const file of mediaFiles) {
-        if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-          return res.status(400).json({
-            success: false,
-            message: "ประเภทไฟล์แนบประกอบไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG, PDF)"
-          });
+    const category = await prisma.category.findUnique({ where: { id: category_id }, select: { id: true } });
+    if (!category) {
+      return res.status(400).json({
+        success: false, message: "กรุณาตรวจสอบข้อมูลโพสต์", errors: {
+          category_id: { code: "NOT_FOUND", message: "ไม่พบหมวดหมู่วิชาที่เลือก" }
         }
-      }
+      });
     }
-
-
+    const coverFiles = req.files.cover_image;
+    const mediaFiles = req.files.media_files;
 
     // 3. จัดการ Tag
     let parsedTags = tags;
@@ -425,7 +415,9 @@ export const createPost = async (req, res) => {
 export const updatePost = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, summary, content, education_level, category_id, post_status, tags, remove_media_ids } = req.body;
+    const { content, category_id, post_status, tags, remove_media_ids } = req.body || {};
+    const validation = validatePostFields(req.body, { partial: true });
+    const { title, summary, education_level } = validation.values;
     const user_id = req.user.id;
 
     // ตรวจสอบโพสต์และความเป็นเจ้าของ
@@ -449,6 +441,13 @@ export const updatePost = async (req, res) => {
 
     if (!["ACTIVE", "DRAFT"].includes(post.post_status)) {
       return res.status(403).json({ message: "Removed or moderated posts cannot be edited" });
+    }
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: "กรุณาตรวจสอบข้อมูลโพสต์",
+        errors: validation.errors,
+      });
     }
     if (post_status !== undefined && !["ACTIVE", "DRAFT"].includes(post_status)) {
       return res.status(400).json({ message: "Invalid post status" });
@@ -550,7 +549,7 @@ export const updatePost = async (req, res) => {
             post_id: id
           }
         });
-        
+
         for (const m of mediaToDelete) {
           const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
           await deleteFromCloudinary(m.media_url, resourceType);
