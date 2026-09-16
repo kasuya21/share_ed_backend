@@ -381,7 +381,8 @@ export const createPost = async (req, res) => {
           createNotification(
             f.follower_id,
             "NEW_POST",
-            `${authorUser.username} ได้เผยแพร่ผลงานใหม่: "${post.title}"`
+            `${authorUser.username} ได้เผยแพร่ผลงานใหม่: "${post.title}"`,
+            post.id
           )
         )
       );
@@ -604,7 +605,8 @@ export const updatePost = async (req, res) => {
           createNotification(
             f.follower_id,
             "NEW_POST",
-            `${authorUser.username} ได้เผยแพร่ผลงานใหม่: "${updatedPost.title}"`
+            `${authorUser.username} ได้เผยแพร่ผลงานใหม่: "${updatedPost.title}"`,
+            updatedPost.id
           )
         )
       );
