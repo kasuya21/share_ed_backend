@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { isSupportedFile } from "../utils/upload-validation.js";
@@ -55,7 +56,7 @@ export const uploadToCloudinary = (fileBuffer, folder = "share-ed", transformati
       { folder, resource_type: "auto", transformation, quality: "auto", fetch_format: "auto" },
       (error, result) => {
         if (error) {
-          console.error("Cloudinary upload error:", error);
+          logError("middlewares.uploadToCloudinary", error);
           return reject(error);
         }
         resolve(result);

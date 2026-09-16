@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 
@@ -31,7 +32,7 @@ export const getAllUsers = async (req, res) => {
       data: users
     });
   } catch (error) {
-    console.error("Get all users error:", error);
+    logError("controllers.getAllUsers", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to fetch users"
@@ -94,7 +95,7 @@ export const changeUserRole = async (req, res) => {
       data: updatedUser
     });
   } catch (error) {
-    console.error("Change user role error:", error);
+    logError("controllers.changeUserRole", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to update user role"
@@ -135,7 +136,7 @@ export const banUser = async (req, res) => {
 
     res.status(200).json({ success: true, message: "User banned successfully" });
   } catch (error) {
-    console.error("Ban user error:", error);
+    logError("controllers.banUser", error, req);
     res.status(500).json({ success: false, message: "Failed to ban user" });
   }
 };
@@ -168,7 +169,7 @@ export const unbanUser = async (req, res) => {
 
     res.status(200).json({ success: true, message: "User unbanned successfully" });
   } catch (error) {
-    console.error("Unban user error:", error);
+    logError("controllers.unbanUser", error, req);
     res.status(500).json({ success: false, message: "Failed to unban user" });
   }
 };
@@ -200,7 +201,7 @@ export const suspendUser = async (req, res) => {
 
     res.status(200).json({ success: true, message: "User suspended successfully" });
   } catch (error) {
-    console.error("Suspend user error:", error);
+    logError("controllers.suspendUser", error, req);
     res.status(500).json({ success: false, message: "Failed to suspend user" });
   }
 };
@@ -227,7 +228,7 @@ export const activateUser = async (req, res) => {
 
     res.status(200).json({ success: true, message: "User activated successfully" });
   } catch (error) {
-    console.error("Activate user error:", error);
+    logError("controllers.activateUser", error, req);
     res.status(500).json({ success: false, message: "Failed to activate user" });
   }
 };

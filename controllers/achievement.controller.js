@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 
 // GET /api/v1/achievements
@@ -38,7 +39,7 @@ export const getAchievements = async (req, res) => {
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error("Get achievements error:", error);
+    logError("controllers.getAchievements", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch achievements" });
   }
 };
@@ -93,7 +94,7 @@ export const claimAchievementReward = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Reward claimed successfully", data: updated });
   } catch (error) {
-    console.error("Claim achievement error:", error);
+    logError("controllers.claimAchievementReward", error, req);
     res.status(500).json({ success: false, message: "Failed to claim reward" });
   }
 };

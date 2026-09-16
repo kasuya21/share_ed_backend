@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { prisma } from '../configs/prisma.js';
 import cloudinary from '../configs/cloudinary.config.js';
 import { extractPublicId } from '../utils/cloudinary.helper.js';
+import { logError, logWarn } from './logger.js';
 
 export const initCronJobs = () => {
   // Run every hour
@@ -40,7 +41,7 @@ export const initCronJobs = () => {
           if (post.cover_image) {
             const publicId = extractPublicId(post.cover_image);
             if (publicId) {
-              await cloudinary.uploader.destroy(publicId).catch(err => console.error(`[Cron] Failed to delete cover for post ${postId}:`, err.message));
+              await cloudinary.uploader.destroy(publicId).catch(err => logWarn('cron.cover.delete_failed', err, undefined, { postId }));
             }
           }
 
@@ -50,17 +51,17 @@ export const initCronJobs = () => {
             if (publicId) {
               const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
               await cloudinary.uploader.destroy(publicId, { resource_type: resourceType })
-                .catch(err => console.error(`[Cron] Failed to delete media for post ${postId}:`, err.message));
+                .catch(err => logWarn('cron.media.delete_failed', err, undefined, { postId }));
             }
           }
 
           // 3. Delete empty folders (optional cleanup, ignoring errors if folder not empty or not found)
           try {
-            await cloudinary.api.delete_folder(`share-ed/posts/${postId}/pdfs`).catch(() => {});
-            await cloudinary.api.delete_folder(`share-ed/posts/${postId}/media`).catch(() => {});
-            await cloudinary.api.delete_folder(`share-ed/posts/${postId}`).catch(() => {});
+            await cloudinary.api.delete_folder(`share-ed/posts/${postId}/pdfs`).catch(error => logWarn('cron.folder.delete_failed', error, undefined, { postId, folderType: 'pdfs' }));
+            await cloudinary.api.delete_folder(`share-ed/posts/${postId}/media`).catch(error => logWarn('cron.folder.delete_failed', error, undefined, { postId, folderType: 'media' }));
+            await cloudinary.api.delete_folder(`share-ed/posts/${postId}`).catch(error => logWarn('cron.folder.delete_failed', error, undefined, { postId, folderType: 'post' }));
           } catch (e) {
-            // Ignore folder deletion errors
+            logWarn('cron.folder.cleanup_failed', e, undefined, { postId });
           }
 
           // 4. Delete related records first to avoid foreign key constraints
@@ -78,7 +79,7 @@ export const initCronJobs = () => {
         }
       }
     } catch (error) {
-      console.error('[Cron] Error during DELETED posts cleanup:', error);
+      logError('cron.deleted_posts.cleanup_failed', error);
     }
   });
 };

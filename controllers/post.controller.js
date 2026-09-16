@@ -1,3 +1,4 @@
+import { logError, logWarn } from "../utils/logger.js";
 import { validatePostFields, validateNewPost, POST_MEDIA_TYPES } from "../utils/post-validation.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
@@ -142,7 +143,7 @@ export const getAllPosts = async (req, res) => {
 
     res.status(200).json({ success: true, data: posts });
   } catch (error) {
-    console.error("Get all posts error:", error);
+    logError("controllers.getAllPosts", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch posts" });
   }
 };
@@ -252,7 +253,7 @@ export const getPostById = async (req, res) => {
         post.view_count += 1;
       }
     } catch (e) {
-      // Ignore view tracking errors
+      logWarn("post.view_tracking_failed", e, req, { postId: id });
     }
 
     res.status(200).json({
@@ -260,7 +261,7 @@ export const getPostById = async (req, res) => {
       data: post
     });
   } catch (error) {
-    console.error("Get post by ID error:", error);
+    logError("controllers.getPostById", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to fetch post"
@@ -273,6 +274,7 @@ export const getPostById = async (req, res) => {
 // สร้างและเผยแพร่โพสต์ใหม่ (หรือเซฟดราฟท์)
 // ============================================================
 export const createPost = async (req, res) => {
+  let stage = "validate";
   try {
     const { content = "", post_status, tags } = req.body || {};
     const validation = validateNewPost(req.body, req.files);
@@ -280,17 +282,24 @@ export const createPost = async (req, res) => {
     const author_id = req.user.id;
 
     if (!validation.valid) {
+      logWarn("post.create.rejected", undefined, req, {
+        stage,
+        invalidFields: Object.keys(validation.errors).join(","),
+      });
       return res.status(400).json({
         success: false,
+        code: "POST_VALIDATION_FAILED",
         message: "กรุณาตรวจสอบข้อมูลโพสต์",
         errors: validation.errors,
       });
     }
 
+    stage = "category_lookup";
     const category = await prisma.category.findUnique({ where: { id: category_id }, select: { id: true } });
     if (!category) {
+      logWarn("post.create.rejected", undefined, req, { stage, invalidFields: "category_id" });
       return res.status(400).json({
-        success: false, message: "กรุณาตรวจสอบข้อมูลโพสต์", errors: {
+        success: false, code: "POST_CATEGORY_NOT_FOUND", message: "กรุณาตรวจสอบข้อมูลโพสต์", errors: {
           category_id: { code: "NOT_FOUND", message: "ไม่พบหมวดหมู่วิชาที่เลือก" }
         }
       });
@@ -299,6 +308,7 @@ export const createPost = async (req, res) => {
     const mediaFiles = req.files.media_files;
 
     // 3. จัดการ Tag
+    stage = "tags_prepare";
     let parsedTags = tags;
     if (typeof tags === 'string') {
       try {
@@ -322,6 +332,7 @@ export const createPost = async (req, res) => {
     }
 
     // 4. อัปโหลดรูปหน้าปกขึ้น Cloudinary
+    stage = "cover_upload";
     let cover_image = null;
     if (coverFiles && coverFiles.length > 0) {
       const uploadResult = await uploadToCloudinary(coverFiles[0].buffer, {
@@ -337,6 +348,7 @@ export const createPost = async (req, res) => {
     // 5. บันทึกโพสต์
     const finalStatus = post_status === "ACTIVE" ? "ACTIVE" : "DRAFT";
 
+    stage = "database_create";
     const post = await prisma.post.create({
       data: {
         title,
@@ -362,11 +374,13 @@ export const createPost = async (req, res) => {
     });
 
     // 6. อัปโหลดไฟล์แนบเพิ่มเติม
+    stage = "media_upload";
     if (mediaFiles && mediaFiles.length > 0) {
       await handleMediaFiles(mediaFiles, post.id);
     }
 
     // 🔔 แจ้งเตือน Followers เมื่อโพสต์ถูก ACTIVE ทันที
+    stage = "publish_side_effects";
     if (post.post_status === "ACTIVE") {
       const authorUser = await prisma.user.findUnique({
         where: { id: author_id },
@@ -394,6 +408,7 @@ export const createPost = async (req, res) => {
       await updateAchievementProgress(author_id, "POSTS_CREATED", totalActivePosts);
     }
 
+    stage = "respond";
     res.status(201).json({
       success: true,
       message: "สร้างโพสต์สำเร็จ",
@@ -401,10 +416,16 @@ export const createPost = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Create post error:", error);
+    logError("post.create.failed", error, req, {
+      stage,
+      coverFileCount: req.files?.cover_image?.length || 0,
+      mediaFileCount: req.files?.media_files?.length || 0,
+      categoryId: req.body?.category_id,
+    });
     res.status(500).json({
       success: false,
-      message: "Failed to create post"
+      code: "POST_CREATE_FAILED",
+      message: "สร้างโพสต์ไม่สำเร็จ กรุณาใช้ requestId เพื่อตรวจสอบ log"
     });
   }
 };
@@ -625,7 +646,7 @@ export const updatePost = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Update post error:", error);
+    logError("controllers.updatePost", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to update post"
@@ -660,7 +681,7 @@ export const deletePost = async (req, res) => {
 
     res.status(200).json({ success: true, message: "ลบโพสต์สำเร็จ" });
   } catch (error) {
-    console.error("Delete post error:", error);
+    logError("controllers.deletePost", error, req);
     res.status(500).json({ success: false, message: "Failed to delete post" });
   }
 };
@@ -702,7 +723,7 @@ export const getUserPosts = async (req, res) => {
       data: posts
     });
   } catch (error) {
-    console.error("Get user posts error:", error);
+    logError("controllers.getUserPosts", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to fetch user posts"
@@ -784,7 +805,7 @@ export const getTrendingPosts = async (req, res) => {
       data: sortedPosts
     });
   } catch (error) {
-    console.error("Get trending posts error:", error);
+    logError("controllers.getTrendingPosts", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to fetch trending posts"
@@ -826,7 +847,7 @@ export const getMostLikedPosts = async (req, res) => {
       data: posts
     });
   } catch (error) {
-    console.error("Get most liked posts error:", error);
+    logError("controllers.getMostLikedPosts", error, req);
     res.status(500).json({
       success: false,
       message: "Failed to fetch most liked posts"
@@ -853,7 +874,7 @@ export const getPlatformStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    logError("controllers.getPlatformStats", error, req);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };

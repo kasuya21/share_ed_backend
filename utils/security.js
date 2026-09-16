@@ -1,3 +1,5 @@
+import { logError, logWarn } from "./logger.js";
+
 export function bearerToken(header) {
   if (typeof header !== "string" || header.length > 8192) return null;
   return /^Bearer ([^\s]+)$/i.exec(header)?.[1] || null;
@@ -35,8 +37,17 @@ export function rateLimit({ limit = 20, windowMs = 60000, maxKeys = 10000, now =
 }
 
 export function errorHandler(error, req, res, next) {
-  if (res.headersSent) return next(error);
   const status = error.type === "entity.too.large" || error.code === "LIMIT_FILE_SIZE" ? 413
     : error.type === "entity.parse.failed" || error.name === "MulterError" || error.code === "INVALID_UPLOAD" ? 400 : 500;
-  res.status(status).json({ message: status === 413 ? "Request too large" : status === 400 ? "Invalid request" : "Internal server error" });
+  (status >= 500 ? logError : logWarn)("http.unhandled_error", error, req, {
+    status,
+    headersSent: res.headersSent,
+    operation: req.logOperation,
+  });
+  if (res.headersSent) return next(error);
+  res.status(status).json({
+    success: false,
+    code: status === 413 ? "REQUEST_TOO_LARGE" : status === 400 ? "INVALID_REQUEST" : "INTERNAL_ERROR",
+    message: status === 413 ? "Request too large" : status === 400 ? "Invalid request" : "Internal server error",
+  });
 }

@@ -28,9 +28,14 @@ const postUpload = upload.fields([
   { name: "media_files", maxCount: 15 },
 ]);
 
+const postOperation = operation => (req, res, next) => {
+  req.logOperation = operation;
+  next();
+};
+
 //require authentication
-router.post("/", authMiddleware, postUpload, createPost);
-router.put("/:id", authMiddleware, postUpload, updatePost);
-router.delete("/:id", authMiddleware, deletePost);
+router.post("/", postOperation("post.create"), authMiddleware, postUpload, createPost);
+router.put("/:id", postOperation("post.update"), authMiddleware, postUpload, updatePost);
+router.delete("/:id", postOperation("post.delete"), authMiddleware, deletePost);
 
 export default router;

@@ -1,4 +1,5 @@
 import cloudinary from "../configs/cloudinary.config.js";
+import { logError } from "./logger.js";
 
 export const extractPublicId = (url) => {
   if (!url) return null;
@@ -21,6 +22,6 @@ export const deleteFromCloudinary = async (url, resourceType = 'image') => {
   try {
     await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
   } catch (error) {
-    console.error(`Failed to delete ${url} from Cloudinary:`, error.message);
+    logError("cloudinary.delete_failed", error, undefined, { resourceType });
   }
 };

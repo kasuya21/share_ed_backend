@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 
 // ============================================================
@@ -22,7 +23,7 @@ export const getAllCategories = async (req, res) => {
       data: categories
     });
   } catch (error) {
-    console.error("Get all categories error:", error);
+    logError("controllers.getAllCategories", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch categories" });
   }
 };
@@ -59,7 +60,7 @@ export const createCategory = async (req, res) => {
       data: newCategory
     });
   } catch (error) {
-    console.error("Create category error:", error);
+    logError("controllers.createCategory", error, req);
     res.status(500).json({ success: false, message: "Failed to create category" });
   }
 };
@@ -103,7 +104,7 @@ export const updateCategory = async (req, res) => {
       data: updatedCategory
     });
   } catch (error) {
-    console.error("Update category error:", error);
+    logError("controllers.updateCategory", error, req);
     res.status(500).json({ success: false, message: "Failed to update category" });
   }
 };
@@ -137,7 +138,7 @@ export const deleteCategory = async (req, res) => {
       message: "Category deleted successfully"
     });
   } catch (error) {
-    console.error("Delete category error:", error);
+    logError("controllers.deleteCategory", error, req);
     res.status(500).json({ success: false, message: "Failed to delete category" });
   }
 };

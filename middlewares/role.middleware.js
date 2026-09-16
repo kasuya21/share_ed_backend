@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 
 export const isModeratorOrAdmin = async (req, res, next) => {
@@ -19,7 +20,7 @@ export const isModeratorOrAdmin = async (req, res, next) => {
     req.userRole = dbUser.role;
     next();
   } catch (error) {
-    console.error("Role middleware error:", error);
+    logError("middlewares.isModeratorOrAdmin", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -43,7 +44,7 @@ export const isAdmin = async (req, res, next) => {
     req.userRole = dbUser.role;
     next();
   } catch (error) {
-    console.error("Admin role middleware error:", error);
+    logError("middlewares.isAdmin", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

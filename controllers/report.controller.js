@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 
@@ -69,7 +70,7 @@ export const reportPost = async (req, res) => {
 
     return res.status(201).json({ message: "Post reported successfully", reportCount });
   } catch (error) {
-    console.error("Error reporting post:", error);
+    logError("controllers.reportPost", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -84,7 +85,7 @@ export const getMyReports = async (req, res) => {
     });
     res.status(200).json({ success: true, data: reports });
   } catch (error) {
-    console.error("Get my reports error:", error);
+    logError("controllers.getMyReports", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch reports" });
   }
 };

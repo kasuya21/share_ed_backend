@@ -5,10 +5,16 @@ export const POST_MEDIA_TYPES = [...POST_IMAGE_TYPES, "application/pdf"];
 export function validateNewPost(body, files) {
   const result = validatePostFields(body);
   const category = body?.category_id;
-  if (typeof category !== "string" || !category.trim()) {
-    result.errors.category_id = { code: "REQUIRED", message: "กรุณาเลือกหมวดหมู่วิชา" };
-  } else {
+  const categoryName = body?.category;
+  if (category !== undefined && category !== null && typeof category !== "string") {
+    result.errors.category_id = { code: "INVALID_TYPE", message: "รหัสหมวดหมู่วิชาต้องเป็นข้อความ" };
+  } else if (typeof category === "string" && category.trim()) {
     result.values.category_id = category.trim();
+  } else if (typeof categoryName === "string" && categoryName.trim()) {
+    // The frontend sends a name when it cannot resolve a category UUID.
+    result.values.category = categoryName.trim();
+  } else {
+    result.errors.category_id = { code: "REQUIRED", message: "กรุณาเลือกหมวดหมู่วิชา" };
   }
   if (!files?.cover_image?.length) {
     result.errors.cover_image = { code: "REQUIRED", message: "กรุณาอัปโหลดรูปปก" };

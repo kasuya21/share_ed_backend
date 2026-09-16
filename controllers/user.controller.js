@@ -1,3 +1,4 @@
+import { logError, logWarn } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { supabase } from "../configs/supabase.config.js";
 import { uploadToCloudinary } from "../middlewares/upload.middleware.js";
@@ -162,7 +163,7 @@ export const updateProfile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Update profile error:", error);
+    logError("controllers.updateProfile", error, req);
     res.status(500).json({ success: false, message: "อัปเดตโปรไฟล์ล้มเหลว" });
   }
 };
@@ -207,7 +208,7 @@ export const onboardUser = async (req, res) => {
 
     res.status(200).json({ success: true, message: "ตั้งค่าโปรไฟล์ครั้งแรกสำเร็จ", data: updatedUser });
   } catch (error) {
-    console.error("Onboarding error:", error);
+    logError("controllers.onboardUser", error, req);
     res.status(500).json({ success: false, message: "ตั้งค่าโปรไฟล์ครั้งแรกไม่สำเร็จ" });
   }
 };
@@ -254,7 +255,7 @@ export const equipItem = async (req, res) => {
 
     res.status(200).json({ success: true, message: `สวมใส่ ${type === 'THEME' ? 'ธีม' : 'กรอบรูป'} สำเร็จ` });
   } catch (error) {
-    console.error("Equip item error:", error);
+    logError("controllers.equipItem", error, req);
     res.status(500).json({ success: false, message: "สวมใส่ไอเท็มล้มเหลว" });
   }
 };
@@ -337,7 +338,7 @@ export const getPublicProfile = async (req, res) => {
           isFollowing = !!followRecord;
         }
       } catch (err) {
-        // Skip auth error to allow guest viewing without break
+        logWarn("profile.optional_auth_failed", err, req);
       }
     }
 
@@ -352,7 +353,7 @@ export const getPublicProfile = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Get public profile error:", error);
+    logError("controllers.getPublicProfile", error, req);
     res.status(500).json({ success: false, message: "ดึงข้อมูลโปรไฟล์ล้มเหลว" });
   }
 };
@@ -472,7 +473,7 @@ export const updateProfileWithMedia = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Update profile with media error:", error);
+    logError("controllers.updateProfileWithMedia", error, req);
     res
       .status(500)
       .json({ success: false, message: "Failed to update profile with media" });
@@ -520,7 +521,7 @@ export const getUserById = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get user by ID error:", error);
+    logError("controllers.getUserById", error, req);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -549,7 +550,7 @@ export const getUserInventory = async (req, res) => {
       data: inventory
     });
   } catch (error) {
-    console.error("Get user inventory error:", error);
+    logError("controllers.getUserInventory", error, req);
     res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการดึงข้อมูลคลังของสะสม" });
   }
 };

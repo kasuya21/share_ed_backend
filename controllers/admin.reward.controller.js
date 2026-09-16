@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
@@ -31,7 +32,7 @@ export const getAllRewards = async (req, res) => {
     
     res.status(200).json({ success: true, data: rewards });
   } catch (error) {
-    console.error("Get all rewards error:", error);
+    logError("controllers.getAllRewards", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch rewards" });
   }
 };
@@ -81,7 +82,7 @@ export const createReward = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Reward created successfully", data: newReward });
   } catch (error) {
-    console.error("Create reward error:", error);
+    logError("controllers.createReward", error, req);
     res.status(500).json({ success: false, message: "Failed to create reward" });
   }
 };
@@ -127,7 +128,7 @@ export const updateReward = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Reward updated successfully", data: updatedReward });
   } catch (error) {
-    console.error("Update reward error:", error);
+    logError("controllers.updateReward", error, req);
     res.status(500).json({ success: false, message: "Failed to update reward" });
   }
 };
@@ -154,7 +155,7 @@ export const toggleRewardStatus = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Reward status updated", data: updatedReward });
   } catch (error) {
-    console.error("Toggle reward status error:", error);
+    logError("controllers.toggleRewardStatus", error, req);
     res.status(500).json({ success: false, message: "Failed to toggle reward status" });
   }
 };
@@ -188,7 +189,7 @@ export const deleteReward = async (req, res) => {
 
     res.status(200).json({ success: true, message: "ลบของรางวัลเรียบร้อยแล้ว" });
   } catch (error) {
-    console.error("Delete reward error:", error);
+    logError("controllers.deleteReward", error, req);
     res.status(500).json({ success: false, message: "Failed to delete reward" });
   }
 };
@@ -222,7 +223,7 @@ export const mapRewardToAchievement = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Mapped reward to achievement successfully", data: updatedAchievement });
   } catch (error) {
-    console.error("Map reward to achievement error:", error);
+    logError("controllers.mapRewardToAchievement", error, req);
     res.status(500).json({ success: false, message: "Failed to map reward to achievement" });
   }
 };

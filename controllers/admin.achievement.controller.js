@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import crypto from "crypto";
@@ -32,7 +33,7 @@ export const getAllAchievements = async (req, res) => {
     });
     res.status(200).json({ success: true, data: achievements });
   } catch (error) {
-    console.error("Get all achievements error:", error);
+    logError("controllers.getAllAchievements", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch achievements" });
   }
 };
@@ -97,7 +98,7 @@ export const createAchievement = async (req, res) => {
 
     res.status(201).json({ success: true, message: "Achievement created successfully", data: achievement });
   } catch (error) {
-    console.error("Create achievement error:", error);
+    logError("controllers.createAchievement", error, req);
     res.status(500).json({ success: false, message: "Failed to create achievement" });
   }
 };
@@ -170,7 +171,7 @@ export const updateAchievement = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Achievement updated successfully", data: updatedAchievement });
   } catch (error) {
-    console.error("Update achievement error:", error);
+    logError("controllers.updateAchievement", error, req);
     res.status(500).json({ success: false, message: "Failed to update achievement" });
   }
 };
@@ -200,7 +201,7 @@ export const deleteAchievement = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Achievement deleted successfully" });
   } catch (error) {
-    console.error("Delete achievement error:", error);
+    logError("controllers.deleteAchievement", error, req);
     res.status(500).json({ success: false, message: "Failed to delete achievement" });
   }
 };

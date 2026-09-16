@@ -1,3 +1,4 @@
+import { logError, logWarn } from "../utils/logger.js";
 import { validatePassword } from "../utils/password-validation.js";
 import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
@@ -74,6 +75,7 @@ export const registerUser = async (req, res) => {
     });
 
     if (authError || !authData.user) {
+      logWarn("auth.register.provider_rejected", authError, req);
       return res.status(400).json({ 
         success: false, 
         message: authError?.message || "สมัครสมาชิกไม่สำเร็จ" 
@@ -101,7 +103,7 @@ export const registerUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Register user error:", error);
+    logError("controllers.registerUser", error, req);
     return res.status(500).json({ 
       success: false, 
       message: "เกิดข้อผิดพลาดในการลงทะเบียน" 
@@ -132,6 +134,7 @@ export const loginUser = async (req, res) => {
 
     // ตรวจสอบสิทธิ์ความปลอดภัย: กรณีผิดพลาดให้แจ้งเตือนความผิดพลาดในลักษณะทั่วไป
     if (error || !data.user || !data.session) {
+      logWarn("auth.login.provider_rejected", error, req);
       return res.status(400).json({ 
         success: false, 
         message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" 
@@ -191,7 +194,7 @@ export const loginUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Login user error:", error);
+    logError("controllers.loginUser", error, req);
     return res.status(500).json({ 
       success: false, 
       message: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ" 
@@ -214,6 +217,7 @@ export const verifyUser = async (req, res) => {
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data?.user) {
+      logWarn("auth.verify.provider_rejected", error, req);
       return res.status(401).json({ message: "Invalid token" });
     }
 
@@ -327,7 +331,7 @@ export const verifyUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Verify user error:", error);
+    logError("controllers.verifyUser", error, req);
     res.status(500).json({
       message: "Server error"
     });
@@ -383,13 +387,14 @@ export const changePassword = async (req, res) => {
     });
 
     if (error) {
+      logWarn("auth.change_password.provider_rejected", error, req);
       return res.status(400).json({ success: false, message: error.message || "เปลี่ยนรหัสผ่านไม่สำเร็จ" });
     }
 
     return res.status(200).json({ success: true, message: "เปลี่ยนรหัสผ่านสำเร็จ" });
 
   } catch (error) {
-    console.error("Change password error:", error);
+    logError("controllers.changePassword", error, req);
     return res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
   }
 };
@@ -421,13 +426,14 @@ export const logoutUser = async (req, res) => {
     const { error } = await userSupabase.auth.signOut();
 
     if (error) {
+      logWarn("auth.logout.provider_rejected", error, req);
       return res.status(400).json({ success: false, message: error.message || "ออกจากระบบไม่สำเร็จ" });
     }
 
     return res.status(200).json({ success: true, message: "ออกจากระบบสำเร็จ" });
 
   } catch (error) {
-    console.error("Logout user error:", error);
+    logError("controllers.logoutUser", error, req);
     return res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการออกจากระบบ" });
   }
 };

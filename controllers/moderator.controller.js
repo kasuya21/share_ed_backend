@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 
@@ -31,7 +32,7 @@ export const getReportedPosts = async (req, res) => {
 
     return res.status(200).json({ posts });
   } catch (error) {
-    console.error("Error getting reported posts:", error);
+    logError("controllers.getReportedPosts", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -90,7 +91,7 @@ export const actionOnPost = async (req, res) => {
     }
 
   } catch (error) {
-    console.error("Error taking action on post:", error);
+    logError("controllers.actionOnPost", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
@@ -73,7 +74,7 @@ export const toggleLike = async (req, res) => {
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });
     }
   } catch (error) {
-    console.error("Toggle like error:", error);
+    logError("controllers.toggleLike", error, req);
     res.status(500).json({ success: false, message: "Failed to toggle like" });
   }
 };
@@ -97,7 +98,7 @@ export const getLikeStatus = async (req, res) => {
       isLiked: !!existingLike
     });
   } catch (error) {
-    console.error("Get like status error:", error);
+    logError("controllers.getLikeStatus", error, req);
     res.status(500).json({ success: false, message: "Failed to get like status" });
   }
 };

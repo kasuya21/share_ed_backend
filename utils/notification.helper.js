@@ -1,5 +1,6 @@
 import { prisma } from '../configs/prisma.js';
 import { getIO } from '../configs/socket.js';
+import { logError, logWarn } from './logger.js';
 
 // ============================================================
 // NOTIFICATION HELPER — ใช้ร่วมกันได้ทุก controller
@@ -41,12 +42,12 @@ export const createNotification = async (userId, type, message, postId = null) =
       }
     } catch (socketErr) {
       // Socket error ไม่ควรทำให้ request หลักพัง
-      console.warn('[Socket] Failed to emit notification:', socketErr.message);
+      logWarn('notification.socket.emit_failed', socketErr, undefined, { recipientId: userId, notificationType: type, postId });
     }
 
     return notification;
   } catch (error) {
-    console.error('[Notification] Failed to create notification:', error);
+    logError('notification.create_failed', error, undefined, { recipientId: userId, notificationType: type, postId });
   }
 };
 

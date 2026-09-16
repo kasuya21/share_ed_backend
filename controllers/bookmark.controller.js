@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 
@@ -40,7 +41,7 @@ export const toggleBookmark = async (req, res) => {
       return res.status(200).json({ success: true, message: "Bookmarked post successfully", isBookmarked: true });
     }
   } catch (error) {
-    console.error("Toggle bookmark error:", error);
+    logError("controllers.toggleBookmark", error, req);
     res.status(500).json({ success: false, message: "Failed to toggle bookmark" });
   }
 };
@@ -65,7 +66,7 @@ export const getBookmarks = async (req, res) => {
 
     res.status(200).json({ success: true, data: bookmarks });
   } catch (error) {
-    console.error("Get bookmarks error:", error);
+    logError("controllers.getBookmarks", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch bookmarks" });
   }
 };

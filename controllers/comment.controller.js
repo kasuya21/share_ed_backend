@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
@@ -58,6 +59,7 @@ export const createComment = async (req, res) => {
     });
     await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
   } catch (err) {
+    logError("controllers.createComment", err, req);
     if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -88,6 +90,7 @@ export const getCommentsByPost = async (req, res) => {
 
     res.json(comments);
   } catch (err) {
+    logError("controllers.getCommentsByPost", err, req);
     if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -115,6 +118,7 @@ export const deleteComment = async (req, res) => {
 
     res.json({ message: "Comment deleted" });
   } catch (err) {
+    logError("controllers.deleteComment", err, req);
     if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -165,6 +169,7 @@ export const updateComment = async (req, res) => {
 
     res.json(updatedComment);
   } catch (err) {
+    logError("controllers.updateComment", err, req);
     if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
   }
 };

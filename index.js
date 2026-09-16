@@ -28,9 +28,11 @@ import { supabase } from "./configs/supabase.config.js";
 import { prisma } from "./configs/prisma.js";
 import { socketAuth, joinOwnRoom } from "./middlewares/socket.middleware.js";
 import { securityHeaders, rateLimit, errorHandler } from "./utils/security.js";
+import { requestLogging, logError } from "./utils/logger.js";
 
 const app = express();
 app.disable("x-powered-by");
+app.use(requestLogging);
 app.use(securityHeaders);
 app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
@@ -50,10 +52,15 @@ const corsOptions = {
     "https://share-ed.online"
   ],
   credentials: true,
+  exposedHeaders: ["X-Request-ID"],
 };
 
 app.use(cors(corsOptions));
 const httpServer = createServer(app);
+httpServer.on("error", error => {
+  logError("server.http.error", error);
+  process.exitCode = 1;
+});
 const io = new Server(httpServer, {
   cors: corsOptions
 });

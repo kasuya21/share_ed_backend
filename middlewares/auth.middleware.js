@@ -1,3 +1,4 @@
+import { logError, logWarn } from "../utils/logger.js";
 import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
@@ -19,6 +20,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error || !data?.user) {
+      logWarn("auth.token.provider_rejected", error, req);
       return res.status(401).json({
         message: "Invalid or expired token"
       });
@@ -46,7 +48,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
     next();
 
   } catch (error) {
-    console.error("Auth middleware error:", error);
+    logError("middlewares.createAuthMiddleware", error, req);
 
     return res.status(500).json({
       message: "Internal server error"

@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
@@ -68,7 +69,7 @@ export const followUser = async (req, res) => {
       data: follow
     });
   } catch (error) {
-    console.error("Follow user error:", error);
+    logError("controllers.followUser", error, req);
     res.status(500).json({ success: false, message: "Failed to follow user" });
   }
 };
@@ -115,7 +116,7 @@ export const unfollowUser = async (req, res) => {
       message: "Unfollowed successfully"
     });
   } catch (error) {
-    console.error("Unfollow user error:", error);
+    logError("controllers.unfollowUser", error, req);
     res.status(500).json({ success: false, message: "Failed to unfollow user" });
   }
 };
@@ -144,7 +145,7 @@ export const getFollowers = async (req, res) => {
       data: follows.map(f => f.follower)
     });
   } catch (error) {
-    console.error("Get followers error:", error);
+    logError("controllers.getFollowers", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch followers" });
   }
 };
@@ -173,7 +174,7 @@ export const getFollowing = async (req, res) => {
       data: follows.map(f => f.following)
     });
   } catch (error) {
-    console.error("Get following error:", error);
+    logError("controllers.getFollowing", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch following list" });
   }
 };

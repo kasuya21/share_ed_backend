@@ -1,5 +1,6 @@
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "./notification.helper.js";
+import { logError } from "./logger.js";
 
 /**
  * Update achievement progress for a user based on type
@@ -52,7 +53,7 @@ export const updateAchievementProgress = async (userId, achievementType, current
       }
     }
   } catch (error) {
-    console.error(`Error updating achievement progress (${achievementType}):`, error);
+    logError("achievement.progress_failed", error, undefined, { subjectId: userId, achievementType });
   }
 };
 

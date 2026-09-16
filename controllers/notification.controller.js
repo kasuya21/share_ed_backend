@@ -1,3 +1,4 @@
+import { logError } from "../utils/logger.js";
 import { prisma } from '../configs/prisma.js';
 
 // ============================================================
@@ -24,7 +25,7 @@ export const getNotifications = async (req, res) => {
 
     res.status(200).json({ success: true, data: formatted });
   } catch (error) {
-    console.error('Get notifications error:', error);
+    logError("controllers.getNotifications", error, req);
     res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
   }
 };
@@ -44,7 +45,7 @@ export const markAsRead = async (req, res) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Mark as read error:', error);
+    logError("controllers.markAsRead", error, req);
     res.status(500).json({ success: false, message: 'Failed to mark notification as read' });
   }
 };
@@ -61,7 +62,7 @@ export const markAllAsRead = async (req, res) => {
     });
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Mark all as read error:', error);
+    logError("controllers.markAllAsRead", error, req);
     res.status(500).json({ success: false, message: 'Failed to mark all as read' });
   }
 };
@@ -80,7 +81,7 @@ export const deleteNotification = async (req, res) => {
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Delete notification error:', error);
+    logError("controllers.deleteNotification", error, req);
     res.status(500).json({ success: false, message: 'Failed to delete notification' });
   }
 };
