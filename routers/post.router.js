@@ -10,7 +10,8 @@ import {
   getUserPosts,
   getTrendingPosts,
   getMostLikedPosts,
-  getPlatformStats
+  getPlatformStats,
+  getUploadSignature
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.get("/", getAllPosts);
 router.get("/trending", getTrendingPosts);
 router.get("/most-liked", getMostLikedPosts);
 router.get("/user/my-posts", authMiddleware, getUserPosts);
+router.get("/upload-signature", authMiddleware, getUploadSignature);
 router.get("/:id", authMiddleware, getPostById);
 
 // Multi-file upload: cover_image (1) + media_files (up to 15 PDFs/images)

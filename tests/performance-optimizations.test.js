@@ -97,3 +97,20 @@ test("liking a post does not recount all author likes across all posts", async t
   assert.deepEqual(achievementFind.mock.calls[0].arguments[0].where, { achievement_type: "POST_LIKES" });
 });
 
+test("upload signature generation signs folder and timestamp", async () => {
+  const { getUploadSignature } = await import("../controllers/post.controller.js");
+  process.env.CLOUDINARY_API_KEY = "test-api-key";
+  process.env.CLOUDINARY_API_SECRET = "test-api-secret";
+  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  const result = response();
+  await getUploadSignature({ query: { type: "cover" } }, result.res);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.success, true);
+  assert.equal(result.body.data.apiKey, "test-api-key");
+  assert.equal(result.body.data.cloudName, "test-cloud");
+  assert.equal(result.body.data.folder, "share-ed/posts/covers");
+  assert.ok(typeof result.body.data.signature === "string");
+  assert.ok(typeof result.body.data.timestamp === "number");
+});
+
+

@@ -394,8 +394,15 @@ export const createPost = async (req, res) => {
         }
       });
     }
-    const coverFiles = req.files.cover_image;
-    const mediaFiles = req.files.media_files;
+    const coverFiles = req.files?.cover_image;
+    const mediaFiles = req.files?.media_files;
+
+    const directCoverUrl = req.body?.cover_image_url || (typeof req.body?.cover_image === "string" && (req.body.cover_image.startsWith("http://") || req.body.cover_image.startsWith("https://")) ? req.body.cover_image : null);
+
+    let directMedia = req.body?.media_files_urls || req.body?.media_urls || req.body?.media;
+    if (typeof directMedia === "string") {
+      try { directMedia = JSON.parse(directMedia); } catch {}
+    }
 
     // 3. จัดการ Tag
     stage = "tags_prepare";
@@ -411,9 +418,10 @@ export const createPost = async (req, res) => {
     const postId = crypto.randomUUID();
     const finalStatus = post_status === "ACTIVE" ? "ACTIVE" : "DRAFT";
 
-    // 4. ขนานการอัปโหลดไฟล์ (หน้าปก + เอกสาร/รูปภาพ Cloudinary) และเตรียมแท็กไปพร้อมกัน
+    // 4. จัดการไฟล์หน้าปกและไฟล์ประกอบ (รองรับทั้ง Direct Uploaded URLs และ Multipart Files)
     stage = "parallel_upload_and_prepare";
     const coverPromise = (async () => {
+      if (directCoverUrl) return directCoverUrl;
       if (!coverFiles || coverFiles.length === 0) return null;
       const uploadResult = await uploadToCloudinary(coverFiles[0].buffer, {
         folder: "share-ed/posts/covers",
@@ -426,6 +434,22 @@ export const createPost = async (req, res) => {
     })();
 
     const mediaPromise = (async () => {
+      if (Array.isArray(directMedia) && directMedia.length > 0) {
+        return directMedia.map(m => {
+          if (typeof m === "string") {
+            const isPdf = m.toLowerCase().endsWith(".pdf") || m.includes("/raw/") || m.includes("/pdfs/");
+            return {
+              media_url: m,
+              media_type: isPdf ? "PDF" : "IMAGE"
+            };
+          }
+          return {
+            media_url: m.url || m.media_url,
+            media_type: m.media_type || (m.url?.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE")
+          };
+        });
+      }
+
       if (!mediaFiles || mediaFiles.length === 0) return [];
       return mapWithConcurrency(mediaFiles, 4, async file => {
         const isPdf = file.mimetype === "application/pdf";
@@ -1002,3 +1026,50 @@ export const getPlatformStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 };
+
+// ============================================================
+// GET /api/v1/posts/upload-signature
+// สร้าง Cloudinary Signature สำหรับ Direct Client Upload
+// ============================================================
+export const getUploadSignature = async (req, res) => {
+  try {
+    const { type } = req.query; // "cover" | "media" | "pdf"
+    const timestamp = Math.round(new Date().getTime() / 1000);
+
+    let folder = "share-ed/posts/media";
+    if (type === "cover") {
+      folder = "share-ed/posts/covers";
+    } else if (type === "pdf") {
+      folder = "share-ed/posts/pdfs";
+    }
+
+    const paramsToSign = {
+      folder,
+      timestamp
+    };
+
+    const signature = cloudinary.utils.api_sign_request(
+      paramsToSign,
+      process.env.CLOUDINARY_API_SECRET
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        signature,
+        timestamp,
+        apiKey: process.env.CLOUDINARY_API_KEY,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        folder,
+        uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/auto/upload`
+      }
+    });
+  } catch (error) {
+    logError("controllers.getUploadSignature", error, req);
+    res.status(500).json({
+      success: false,
+      message: "Failed to generate upload signature"
+    });
+  }
+};
+
