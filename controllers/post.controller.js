@@ -42,6 +42,29 @@ async function preparePostTags(values) {
   return tags.map(tag => ({ tag_id: tag.id }));
 }
 
+export const POST_CARD_SELECT = {
+  id: true,
+  title: true,
+  summary: true,
+  education_level: true,
+  view_count: true,
+  author_id: true,
+  category_id: true,
+  cover_image: true,
+  created_at: true,
+  post_status: true,
+  author: {
+    select: { id: true, username: true, profile_image: true }
+  },
+  category: true,
+  tags: {
+    select: { tag: { select: { id: true, tag_name: true } } }
+  },
+  _count: {
+    select: { comments: true, likes: true, bookmarks: true }
+  }
+};
+
 // ─── Helper: Upload a single buffer to Cloudinary ───
 async function uploadToCloudinary(fileBuffer, options = {}) {
   return new Promise((resolve, reject) => {
@@ -161,27 +184,7 @@ export const getAllPosts = async (req, res) => {
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
-        select: {
-          id: true,
-          title: true,
-          summary: true,
-          education_level: true,
-          view_count: true,
-          author_id: true,
-          category_id: true,
-          cover_image: true,
-          created_at: true,
-          author: {
-            select: { id: true, username: true, profile_image: true }
-          },
-          category: true,
-          tags: {
-            select: { tag: { select: { id: true, tag_name: true } } }
-          },
-          _count: {
-            select: { comments: true, likes: true, bookmarks: true }
-          }
-        },
+        select: POST_CARD_SELECT,
         orderBy,
         skip,
         take: limit,
@@ -294,31 +297,32 @@ export const getPostById = async (req, res) => {
       });
     }
 
-    // 4.1.3.3 นับจำนวนครั้งเข้าชม (เฉพาะกรณีที่เป็นผู้ใช้คนละคนกันในเซสชัน เพื่อป้องกันการปั๊มยอด)
-    try {
-      const existingView = await prisma.postView.findUnique({
-        where: {
-          user_id_post_id: { user_id: userId, post_id: id }
-        }
-      });
-      if (!existingView) {
-        await prisma.$transaction([
-          prisma.postView.create({ data: { user_id: userId, post_id: id } }),
-          prisma.post.update({
-            where: { id },
-            data: { view_count: { increment: 1 } }
-          })
-        ]);
-        post.view_count += 1;
-      }
-    } catch (e) {
-      logWarn("post.view_tracking_failed", e, req, { postId: id });
-    }
-
     res.status(200).json({
       success: true,
       data: post
     });
+
+    // 4.1.3.3 นับจำนวนครั้งเข้าชม (Async non-blocking ใน background)
+    (async () => {
+      try {
+        const existingView = await prisma.postView.findUnique({
+          where: {
+            user_id_post_id: { user_id: userId, post_id: id }
+          }
+        });
+        if (!existingView) {
+          await prisma.$transaction([
+            prisma.postView.create({ data: { user_id: userId, post_id: id } }),
+            prisma.post.update({
+              where: { id },
+              data: { view_count: { increment: 1 } }
+            })
+          ]);
+        }
+      } catch (e) {
+        logWarn("post.view_tracking_failed", e, req, { postId: id });
+      }
+    })();
   } catch (error) {
     logError("controllers.getPostById", error, req);
     res.status(500).json({
@@ -804,13 +808,7 @@ export const getTrendingPosts = async (req, res) => {
           post_status: "ACTIVE",
           ...(level && { education_level: level })
         },
-        include: {
-          author: { select: { id: true, username: true, profile_image: true } },
-          category: true,
-          media: true,
-          tags: { include: { tag: true } },
-          _count: { select: { comments: true, likes: true, bookmarks: true } }
-        },
+        select: POST_CARD_SELECT,
         orderBy: { view_count: "desc" },
         take: 3
       });
@@ -824,17 +822,7 @@ export const getTrendingPosts = async (req, res) => {
         id: { in: postIds },
         post_status: "ACTIVE"
       },
-      include: {
-        author: {
-          select: { id: true, username: true, profile_image: true }
-        },
-        category: true,
-        media: true,
-        tags: { include: { tag: true } },
-        _count: {
-          select: { comments: true, likes: true, bookmarks: true }
-        }
-      }
+      select: POST_CARD_SELECT,
     });
 
     const sortedPosts = posts.sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id));
@@ -862,17 +850,7 @@ export const getMostLikedPosts = async (req, res) => {
       where: {
         post_status: "ACTIVE"
       },
-      include: {
-        author: {
-          select: { id: true, username: true, profile_image: true }
-        },
-        category: true,
-        media: true,
-        tags: { include: { tag: true } },
-        _count: {
-          select: { comments: true, likes: true, bookmarks: true }
-        }
-      },
+      select: POST_CARD_SELECT,
       orderBy: {
         likes: {
           _count: "desc"

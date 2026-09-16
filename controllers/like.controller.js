@@ -52,16 +52,16 @@ export const toggleLike = async (req, res) => {
         throw error;
       }
 
-      // 🔔 แจ้งเจ้าของโพสต์ (ไม่แจ้งตัวเอง)
+      // 🔔 แจ้งเจ้าของโพสต์ และ อัปเดต Achievement พร้อมกันแบบ Concurrent เพื่อความเร็วสูงสุด
       if (post.author_id !== userId) {
-        await createLikeNotification({
-          recipientId: post.author_id,
-          actorId: userId,
-          postId,
-        });
-
-        // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์ แบบเพิ่มทีละ 1 โดยไม่ต้อง query ค้นหาโพสต์และนับ like ทั้งหมดใหม่)
-        await incrementAchievementProgress(post.author_id, "POST_LIKES", 1);
+        await Promise.all([
+          createLikeNotification({
+            recipientId: post.author_id,
+            actorId: userId,
+            postId,
+          }),
+          incrementAchievementProgress(post.author_id, "POST_LIKES", 1),
+        ]);
       }
 
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });

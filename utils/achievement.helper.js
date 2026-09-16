@@ -2,6 +2,26 @@ import { prisma } from "../configs/prisma.js";
 import { createNotification } from "./notification.helper.js";
 import { logError } from "./logger.js";
 
+// In-Memory Cache for achievement definitions (5 minutes TTL)
+const achievementTypeCache = new Map();
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getAchievementsByType(achievementType) {
+  if (process.env.NODE_ENV !== "test") {
+    const cached = achievementTypeCache.get(achievementType);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+  }
+  const data = await prisma.achievement.findMany({
+    where: { achievement_type: achievementType }
+  });
+  if (process.env.NODE_ENV !== "test") {
+    achievementTypeCache.set(achievementType, { data, timestamp: Date.now() });
+  }
+  return data;
+}
+
 /**
  * Update achievement progress for a user based on type
  * @param {string} userId - User ID to update progress for
@@ -10,9 +30,7 @@ import { logError } from "./logger.js";
  */
 export const updateAchievementProgress = async (userId, achievementType, currentTotal) => {
   try {
-    const achievements = await prisma.achievement.findMany({
-      where: { achievement_type: achievementType }
-    });
+    const achievements = await getAchievementsByType(achievementType);
 
     for (const achievement of achievements) {
       let um = await prisma.userAchievement.findUnique({
@@ -65,9 +83,7 @@ export const updateAchievementProgress = async (userId, achievementType, current
  */
 export const incrementAchievementProgress = async (userId, achievementType, amount = 1) => {
   try {
-    const achievements = await prisma.achievement.findMany({
-      where: { achievement_type: achievementType }
-    });
+    const achievements = await getAchievementsByType(achievementType);
 
     if (!achievements.length) return;
 
