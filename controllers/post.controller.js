@@ -9,6 +9,38 @@ import { supabase } from "../configs/supabase.config.js";
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 50;
+
+function positiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+}
+
+async function mapWithConcurrency(items, concurrency, operation) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await operation(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
+async function preparePostTags(values) {
+  if (!Array.isArray(values)) return [];
+  const names = [...new Set(values
+    .filter(value => typeof value === "string" && value.trim())
+    .map(value => value.trim())
+    .map(value => value.startsWith("#") ? value : `#${value}`))];
+  const tags = await mapWithConcurrency(names, 5, tag_name => prisma.tag.upsert({
+    where: { tag_name }, update: {}, create: { tag_name },
+  }));
+  return tags.map(tag => ({ tag_id: tag.id }));
+}
 
 // ─── Helper: Upload a single buffer to Cloudinary ───
 async function uploadToCloudinary(fileBuffer, options = {}) {
@@ -25,7 +57,7 @@ async function uploadToCloudinary(fileBuffer, options = {}) {
 async function handleMediaFiles(files, postId) {
   if (!files || files.length === 0) return;
 
-  for (const file of files) {
+  await mapWithConcurrency(files, 3, async file => {
     const isPdf = file.mimetype === "application/pdf";
 
     // file.originalname ถูก decode เป็น UTF-8 แล้วโดย upload.middleware.js
@@ -57,7 +89,7 @@ async function handleMediaFiles(files, postId) {
         post_id: postId,
       },
     });
-  }
+  });
 }
 
 // ============================================================
@@ -67,6 +99,9 @@ async function handleMediaFiles(files, postId) {
 export const getAllPosts = async (req, res) => {
   try {
     const { search, level, sort, tag, category_id } = req.query;
+    const page = positiveInteger(req.query.page, 1);
+    const limit = positiveInteger(req.query.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const skip = (page - 1) * limit;
 
     const where = { post_status: "ACTIVE" };
 
@@ -123,25 +158,49 @@ export const getAllPosts = async (req, res) => {
       orderBy = { created_at: "desc" }; // default: latest
     }
 
-    const posts = await prisma.post.findMany({
-      where,
-      include: {
-        author: {
-          select: { id: true, username: true, profile_image: true }
+    const [posts, total] = await Promise.all([
+      prisma.post.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          summary: true,
+          education_level: true,
+          view_count: true,
+          author_id: true,
+          category_id: true,
+          cover_image: true,
+          created_at: true,
+          author: {
+            select: { id: true, username: true, profile_image: true }
+          },
+          category: true,
+          tags: {
+            select: { tag: { select: { id: true, tag_name: true } } }
+          },
+          _count: {
+            select: { comments: true, likes: true, bookmarks: true }
+          }
         },
-        category: true,
-        media: true,
-        tags: {
-          include: { tag: true }
-        },
-        _count: {
-          select: { comments: true, likes: true, bookmarks: true }
-        }
-      },
-      orderBy
-    });
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      prisma.post.count({ where }),
+    ]);
 
-    res.status(200).json({ success: true, data: posts });
+    res.status(200).json({
+      success: true,
+      data: posts,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
+      },
+    });
   } catch (error) {
     logError("controllers.getAllPosts", error, req);
     res.status(500).json({ success: false, message: "Failed to fetch posts" });
@@ -318,18 +377,7 @@ export const createPost = async (req, res) => {
       }
     }
 
-    const postTagConnects = [];
-    if (parsedTags && Array.isArray(parsedTags)) {
-      for (const tagName of parsedTags) {
-        const cleanedTag = tagName.startsWith("#") ? tagName : `#${tagName}`;
-        const tag = await prisma.tag.upsert({
-          where: { tag_name: cleanedTag },
-          update: {},
-          create: { tag_name: cleanedTag },
-        });
-        postTagConnects.push({ tag_id: tag.id });
-      }
-    }
+    const postTagConnects = await preparePostTags(parsedTags);
 
     // 4. อัปโหลดรูปหน้าปกขึ้น Cloudinary
     stage = "cover_upload";
@@ -538,16 +586,7 @@ export const updatePost = async (req, res) => {
         where: { post_id: id }
       });
 
-      const postTagConnects = [];
-      for (const tagName of parsedTags) {
-        const cleanedTag = tagName.startsWith("#") ? tagName : `#${tagName}`;
-        const tag = await prisma.tag.upsert({
-          where: { tag_name: cleanedTag },
-          update: {},
-          create: { tag_name: cleanedTag },
-        });
-        postTagConnects.push({ tag_id: tag.id });
-      }
+      const postTagConnects = await preparePostTags(parsedTags);
 
       updateData.tags = {
         create: postTagConnects
@@ -572,10 +611,10 @@ export const updatePost = async (req, res) => {
           }
         });
 
-        for (const m of mediaToDelete) {
+        await mapWithConcurrency(mediaToDelete, 3, async m => {
           const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
           await deleteFromCloudinary(m.media_url, resourceType);
-        }
+        });
 
         await prisma.postMedia.deleteMany({
           where: {
@@ -861,10 +900,10 @@ export const getMostLikedPosts = async (req, res) => {
 // ============================================================
 export const getPlatformStats = async (req, res) => {
   try {
-    const totalPosts = await prisma.post.count({
-      where: { post_status: 'ACTIVE' }
-    });
-    const totalSharers = await prisma.user.count();
+    const [totalPosts, totalSharers] = await Promise.all([
+      prisma.post.count({ where: { post_status: 'ACTIVE' } }),
+      prisma.user.count(),
+    ]);
 
     res.status(200).json({
       success: true,

@@ -2,6 +2,7 @@ import { logError, logWarn } from "../utils/logger.js";
 import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
+import { verifyAccessToken } from "../utils/auth-token.js";
 
 export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => async (req, res, next) => {
   try {
@@ -17,9 +18,9 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
 
     if (!token) return res.status(401).json({ message: "Invalid authorization header" });
 
-    const { data, error } = await supabase.auth.getUser(token);
+    const { user, error } = await verifyAccessToken(supabase, token);
 
-    if (error || !data?.user) {
+    if (error || !user) {
       logWarn("auth.token.provider_rejected", error, req);
       return res.status(401).json({
         message: "Invalid or expired token"
@@ -28,7 +29,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
 
     // Check if user is BANNED or SUSPENDED in database
     const dbUser = await prisma.user.findUnique({
-      where: { id: data.user.id },
+      where: { id: user.id },
       select: { status: true, role: true }
     });
 
@@ -43,7 +44,7 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
     }
 
     req.userRole = dbUser?.role;
-    req.user = data.user; // attach user
+    req.user = user;
 
     next();
 

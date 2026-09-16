@@ -62,13 +62,8 @@ export const toggleLike = async (req, res) => {
       }
 
       // 🏆 อัปเดต Achievement: POST_LIKES (สำหรับเจ้าของโพสต์)
-      const userPosts = await prisma.post.findMany({
-        where: { author_id: post.author_id },
-        select: { id: true }
-      });
-      const postIds = userPosts.map(p => p.id);
       const totalLikesReceived = await prisma.like.count({
-        where: { post_id: { in: postIds } }
+        where: { post: { author_id: post.author_id } }
       });
       await updateAchievementProgress(post.author_id, "POST_LIKES", totalLikesReceived);
 

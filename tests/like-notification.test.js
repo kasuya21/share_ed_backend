@@ -133,7 +133,7 @@ test("toggle Like, Unlike and re-Like keeps database and socket state aligned", 
   replace(t, prisma.like, "findUnique", async () => liked ? { id: "like-1" } : null);
   replace(t, prisma.like, "create", async () => { liked = true; return { id: "like-1" }; });
   replace(t, prisma.like, "deleteMany", async () => { liked = false; return { count: 1 }; });
-  replace(t, prisma.like, "count", async () => liked ? 1 : 0);
+  const likeCount = replace(t, prisma.like, "count", async () => liked ? 1 : 0);
   replace(t, prisma.user, "findUnique", async () => actor);
   replace(t, prisma.achievement, "findMany", async () => []);
   replace(t, prisma.notification, "create", async ({ data }) => {
@@ -161,4 +161,5 @@ test("toggle Like, Unlike and re-Like keeps database and socket state aligned", 
   ]);
   assert.equal(events[0].payload.notificationId, undefined);
   assert.notEqual(events[0].payload.id, events[2].payload.id);
+  assert.deepEqual(likeCount.mock.calls[0].arguments[0].where, { post: { author_id: "recipient" } });
 });
