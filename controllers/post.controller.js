@@ -1039,38 +1039,40 @@ export const getPlatformStats = async (req, res) => {
 // GET /api/v1/posts/upload-signature
 // สร้าง Cloudinary Signature สำหรับ Direct Client Upload
 // ============================================================
+const DIRECT_UPLOAD_TYPES = new Set(["cover", "media", "pdf"]);
+
+function directUploadSignature(type, timestamp) {
+  let folder = "share-ed/posts/media";
+  if (type === "cover") folder = "share-ed/posts/covers";
+  else if (type === "pdf") folder = "share-ed/posts/pdfs";
+
+  const paramsToSign = { folder, timestamp };
+  return {
+    type,
+    signature: cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET),
+    timestamp,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    folder,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/auto/upload`,
+  };
+}
+
 export const getUploadSignature = async (req, res) => {
   try {
     const { type } = req.query; // "cover" | "media" | "pdf"
-    const timestamp = Math.round(new Date().getTime() / 1000);
-
-    let folder = "share-ed/posts/media";
-    if (type === "cover") {
-      folder = "share-ed/posts/covers";
-    } else if (type === "pdf") {
-      folder = "share-ed/posts/pdfs";
+    if (!DIRECT_UPLOAD_TYPES.has(type)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_UPLOAD_TYPE",
+        message: "ประเภทการอัปโหลดไม่ถูกต้อง",
+      });
     }
-
-    const paramsToSign = {
-      folder,
-      timestamp
-    };
-
-    const signature = cloudinary.utils.api_sign_request(
-      paramsToSign,
-      process.env.CLOUDINARY_API_SECRET
-    );
+    const timestamp = Math.round(new Date().getTime() / 1000);
 
     res.status(200).json({
       success: true,
-      data: {
-        signature,
-        timestamp,
-        apiKey: process.env.CLOUDINARY_API_KEY,
-        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-        folder,
-        uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/auto/upload`
-      }
+      data: directUploadSignature(type, timestamp),
     });
   } catch (error) {
     logError("controllers.getUploadSignature", error, req);
@@ -1078,6 +1080,38 @@ export const getUploadSignature = async (req, res) => {
       success: false,
       message: "Failed to generate upload signature"
     });
+  }
+};
+
+// POST /api/v1/posts/upload-signatures
+// ขอสิทธิ์ cover/media/pdf ครั้งเดียว แล้วอัปโหลดไฟล์ทั้งหมดตรงไป Cloudinary พร้อมกัน
+export const getUploadSignatures = async (req, res) => {
+  try {
+    const types = req.body?.types;
+    if (!Array.isArray(types) || types.length === 0 || types.length > 3) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_UPLOAD_TYPES",
+        message: "กรุณาระบุประเภทการอัปโหลด 1–3 ประเภท",
+      });
+    }
+    const uniqueTypes = [...new Set(types)];
+    if (uniqueTypes.some(type => !DIRECT_UPLOAD_TYPES.has(type))) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_UPLOAD_TYPE",
+        message: "ประเภทการอัปโหลดไม่ถูกต้อง",
+      });
+    }
+
+    const timestamp = Math.round(Date.now() / 1000);
+    const uploads = Object.fromEntries(
+      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp)])
+    );
+    return res.status(200).json({ success: true, data: { uploads } });
+  } catch (error) {
+    logError("controllers.getUploadSignatures", error, req);
+    return res.status(500).json({ success: false, message: "Failed to generate upload signatures" });
   }
 };
 

@@ -11,4 +11,5 @@ tests
 tests/*
 !tests/like-notification.test.js
 !tests/performance-optimizations.test.js
+!tests/upload-memory.test.js
 scripts

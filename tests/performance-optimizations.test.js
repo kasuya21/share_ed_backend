@@ -114,4 +114,46 @@ test("upload signature generation signs folder and timestamp", async () => {
   assert.ok(typeof result.body.data.timestamp === "number");
 });
 
+test("upload signature rejects unknown upload types", async () => {
+  const { getUploadSignature } = await import("../controllers/post.controller.js");
+  const result = response();
+  await getUploadSignature({ query: { type: "video" } }, result.res);
+  assert.equal(result.status, 400);
+  assert.equal(result.body.code, "INVALID_UPLOAD_TYPE");
+});
+
+test("batch upload signatures return all configs needed for concurrent direct uploads", async () => {
+  const { getUploadSignatures } = await import("../controllers/post.controller.js");
+  process.env.CLOUDINARY_API_KEY = "test-api-key";
+  process.env.CLOUDINARY_API_SECRET = "test-api-secret";
+  process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  const result = response();
+
+  await getUploadSignatures({ body: { types: ["cover", "media", "pdf"] } }, result.res);
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(Object.keys(result.body.data.uploads), ["cover", "media", "pdf"]);
+  assert.equal(result.body.data.uploads.cover.folder, "share-ed/posts/covers");
+  assert.equal(result.body.data.uploads.media.folder, "share-ed/posts/media");
+  assert.equal(result.body.data.uploads.pdf.folder, "share-ed/posts/pdfs");
+  assert.equal(result.body.data.uploads.cover.timestamp, result.body.data.uploads.pdf.timestamp);
+  assert.match(result.body.data.uploads.media.uploadUrl, /\/auto\/upload$/);
+});
+
+test("batch upload signatures reject invalid request shapes and upload types", async () => {
+  const { getUploadSignatures } = await import("../controllers/post.controller.js");
+
+  for (const types of [undefined, [], ["cover", "media", "pdf", "cover"]]) {
+    const result = response();
+    await getUploadSignatures({ body: { types } }, result.res);
+    assert.equal(result.status, 400);
+    assert.equal(result.body.code, "INVALID_UPLOAD_TYPES");
+  }
+
+  const invalidType = response();
+  await getUploadSignatures({ body: { types: ["cover", "video"] } }, invalidType.res);
+  assert.equal(invalidType.status, 400);
+  assert.equal(invalidType.body.code, "INVALID_UPLOAD_TYPE");
+});
+
 

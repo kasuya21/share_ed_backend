@@ -15,8 +15,8 @@
 - Frontend Socket.IO must connect with auth: { token: session.access_token }. Refresh the token on reconnect. Sending only a user ID is insufficient.
 - Socket authorization is checked on connection. Existing connections still need a disconnect/revalidation policy for bans, logout and token expiry.
 - Rate limits are per process. For multiple instances use a shared store or gateway; behind a proxy configure trust only for the actual trusted proxy topology, otherwise all clients may share one limit.
-- Upload memory can still reach 16 x 25 MiB per request; production ingress needs aggregate request size, concurrency and connection limits.
-- API documentation remains publicly available. Decide whether production should expose it.
+- Legacy multipart uploads use route-specific file and aggregate limits. Only one legacy multipart response lifecycle runs per instance by default (`LEGACY_MULTIPART_CONCURRENCY=1`); concurrent direct-to-provider uploads bypass this circuit breaker. Production ingress should still enforce request size, connection and timeout limits.
+- Swagger configuration remains in the repository, but `index.js` does not expose a Swagger route.
 - Review provider-side Supabase RLS, auth configuration, storage policies and deployment secrets separately; these were not exercised.
 - Existing unrelated working-tree changes were preserved. No production database mutation or deployment was performed.
 
@@ -29,6 +29,6 @@ Removed Prisma configuration logging of the database connection URL. A credentia
 
 ## Final verification
 - npm run build: PASS (Prisma Client 7.10.0 generated).
-- npm test: PASS, 11 tests, including account-linking, provisioning and moderation regression checks.
+- npm test: PASS, 44 tests, including upload memory bounds, concurrent-request protection, account-linking, provisioning and moderation regression checks.
 - Protected routes reject identities missing a local account; only /auth/me allows identity provisioning.
 - No deployment or production service integration test was performed.
