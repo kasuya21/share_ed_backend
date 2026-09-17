@@ -208,20 +208,10 @@ export const loginUser = async (req, res) => {
 // ============================================================
 export const verifyUser = async (req, res) => {
   try {
-    const token = bearerToken(req.headers.authorization);
-
-    if (!token) {
-      return res.status(401).json({ message: "No token" });
-    }
-
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data?.user) {
-      logWarn("auth.verify.provider_rejected", error, req);
-      return res.status(401).json({ message: "Invalid token" });
-    }
-
-    const authUser = data.user;
+    // provisioningAuthMiddleware already verified the Supabase JWT signature.
+    // Reuse its claims instead of calling Supabase Auth a second time.
+    const authUser = req.user;
+    if (!authUser?.id) return res.status(401).json({ message: "Invalid token" });
 
     // ดึงข้อมูลสมาชิกจากฐานข้อมูล (Prisma)
     let dbUser = await prisma.user.findUnique({
