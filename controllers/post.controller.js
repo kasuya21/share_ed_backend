@@ -14,6 +14,16 @@ export const trendingPostsCache = new MemoryCache(45 * 1000);
 export const mostLikedPostsCache = new MemoryCache(45 * 1000);
 export const platformStatsCache = new MemoryCache(60 * 1000);
 
+const AUTHOR_FRAME_SELECT = {
+  id: true,
+  username: true,
+  profile_image: true,
+  current_frame_id: true,
+  current_frame: {
+    select: { id: true, item_name: true, image_url: true, metadata: true }
+  }
+};
+
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
 const DEFAULT_PAGE_SIZE = 50;
@@ -80,7 +90,7 @@ export const POST_CARD_SELECT = {
   created_at: true,
   post_status: true,
   author: {
-    select: { id: true, username: true, profile_image: true }
+    select: AUTHOR_FRAME_SELECT
   },
   category: true,
   tags: {
@@ -257,9 +267,7 @@ export const getPostById = async (req, res) => {
       include: {
         author: {
           select: {
-            id: true,
-            username: true,
-            profile_image: true,
+            ...AUTHOR_FRAME_SELECT,
             bio: true
           }
         },
@@ -510,7 +518,7 @@ export const createPost = async (req, res) => {
       },
       include: {
         author: {
-          select: { id: true, username: true, profile_image: true }
+          select: AUTHOR_FRAME_SELECT
         },
         tags: {
           include: { tag: true }
@@ -730,7 +738,7 @@ export const updatePost = async (req, res) => {
       data: updateData,
       include: {
         author: {
-          select: { id: true, username: true, profile_image: true }
+          select: AUTHOR_FRAME_SELECT
         },
         category: true,
         media: true,

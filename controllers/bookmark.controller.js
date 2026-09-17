@@ -50,7 +50,17 @@ export const getBookmarks = async (req, res) => {
       include: {
         post: {
           include: {
-            author: { select: { id: true, username: true, profile_image: true } },
+            author: {
+              select: {
+                id: true,
+                username: true,
+                profile_image: true,
+                current_frame_id: true,
+                current_frame: {
+                  select: { id: true, item_name: true, image_url: true, metadata: true }
+                }
+              }
+            },
             category: true,
             _count: { select: { comments: true, likes: true } }
           }

@@ -36,6 +36,7 @@ test("post listing is paginated and omits detail-only content and media", async 
   assert.equal(query.take, 10);
   assert.equal(query.select.content, undefined);
   assert.equal(query.select.media, undefined);
+  assert.equal(query.select.author.select.current_frame.select.image_url, true);
   assert.deepEqual(result.body.pagination, {
     page: 2, limit: 10, total: 27, totalPages: 3,
     hasNextPage: true, hasPreviousPage: true,

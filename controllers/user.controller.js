@@ -453,6 +453,10 @@ export const updateProfileWithMedia = async (req, res) => {
         social_links: true,
         profile_banner: true,
         wallpaper: true,
+        current_frame_id: true,
+        current_frame: {
+          select: { id: true, item_name: true, image_url: true, metadata: true }
+        },
       },
     });
 
