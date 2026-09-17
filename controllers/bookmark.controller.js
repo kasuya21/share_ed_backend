@@ -44,6 +44,18 @@ export const toggleBookmark = async (req, res) => {
 export const getBookmarks = async (req, res) => {
   try {
     const userId = req.user.id;
+    const idsOnly = req.query.idsOnly === "true";
+
+    if (idsOnly) {
+      const bookmarks = await prisma.bookmark.findMany({
+        where: { user_id: userId, post: { post_status: "ACTIVE" } },
+        select: { post_id: true },
+        orderBy: { created_at: "desc" }
+      });
+
+      return res.status(200).json({ success: true, data: bookmarks });
+    }
+
     // get all bookmark by user id
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId, post: { post_status: "ACTIVE" } },
