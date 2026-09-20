@@ -12,4 +12,6 @@ tests/*
 !tests/like-notification.test.js
 !tests/performance-optimizations.test.js
 !tests/upload-memory.test.js
+!tests/direct-upload-validation.test.js
+!tests/post-validation.test.js
 scripts

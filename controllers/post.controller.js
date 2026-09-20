@@ -8,6 +8,12 @@ import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
 import { MemoryCache } from "../utils/cache.helper.js";
+import {
+  DIRECT_UPLOAD_POLICIES,
+  DirectUploadValidationError,
+  directUploadParams,
+  verifyDirectUploadAsset,
+} from "../utils/direct-upload.js";
 
 // In-Memory Caches for heavy home page queries
 export const trendingPostsCache = new MemoryCache(45 * 1000);
@@ -76,6 +82,11 @@ async function preparePostTags(values) {
 
   const allTags = [...existingTags, ...createdTags];
   return allTags.map(tag => ({ tag_id: tag.id }));
+}
+
+function parseJsonValue(value) {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return undefined; }
 }
 
 export const POST_CARD_SELECT = {
@@ -393,8 +404,10 @@ export const createPost = async (req, res) => {
     }
 
     stage = "category_lookup";
-    const category = await prisma.category.findUnique({ where: { id: category_id }, select: { id: true } });
-    if (!category) {
+    const category = category_id
+      ? await prisma.category.findUnique({ where: { id: category_id }, select: { id: true } })
+      : null;
+    if (category_id && !category) {
       logWarn("post.create.rejected", undefined, req, { stage, invalidFields: "category_id" });
       return res.status(400).json({
         success: false, code: "POST_CATEGORY_NOT_FOUND", message: "กรุณาตรวจสอบข้อมูลโพสต์", errors: {
@@ -405,11 +418,49 @@ export const createPost = async (req, res) => {
     const coverFiles = req.files?.cover_image;
     const mediaFiles = req.files?.media_files;
 
-    const directCoverUrl = req.body?.cover_image_url || (typeof req.body?.cover_image === "string" && (req.body.cover_image.startsWith("http://") || req.body.cover_image.startsWith("https://")) ? req.body.cover_image : null);
+    const directCover = parseJsonValue(req.body?.cover_upload);
+    const directMedia = parseJsonValue(req.body?.media_uploads);
+    let verifiedCoverUrl = null;
+    let verifiedDirectMedia = [];
 
-    let directMedia = req.body?.media_files_urls || req.body?.media_urls || req.body?.media;
-    if (typeof directMedia === "string") {
-      try { directMedia = JSON.parse(directMedia); } catch {}
+    if (directCover || directMedia) {
+      stage = "direct_upload_verify";
+      try {
+        const verification = {
+          userId: author_id,
+          cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+          verifySignature: (publicId, version, signature) =>
+            cloudinary.utils.verify_api_response_signature(publicId, version, signature),
+        };
+        if (directCover) {
+          verifiedCoverUrl = verifyDirectUploadAsset(directCover, {
+            ...verification,
+            type: "cover",
+            field: "cover_upload",
+          }).media_url;
+        }
+        if (Array.isArray(directMedia)) {
+          verifiedDirectMedia = directMedia.map((asset, index) => {
+            const type = asset?.resource_type === "raw" || asset?.format === "pdf" ? "pdf" : "media";
+            return verifyDirectUploadAsset(asset, {
+              ...verification,
+              type,
+              field: `media_uploads.${index}`,
+            });
+          });
+        }
+      } catch (error) {
+        if (!(error instanceof DirectUploadValidationError)) throw error;
+        logWarn("post.create.direct_upload_rejected", error, req, { stage, field: error.field });
+        return res.status(400).json({
+          success: false,
+          code: error.code,
+          message: "กรุณาตรวจสอบไฟล์ที่อัปโหลด",
+          errors: {
+            [error.field]: { code: error.code, message: error.message },
+          },
+        });
+      }
     }
 
     // 3. จัดการ Tag
@@ -429,7 +480,7 @@ export const createPost = async (req, res) => {
     // 4. จัดการไฟล์หน้าปกและไฟล์ประกอบ (รองรับทั้ง Direct Uploaded URLs และ Multipart Files)
     stage = "parallel_upload_and_prepare";
     const coverPromise = (async () => {
-      if (directCoverUrl) return directCoverUrl;
+      if (verifiedCoverUrl) return verifiedCoverUrl;
       if (!coverFiles || coverFiles.length === 0) return null;
       const uploadResult = await uploadToCloudinary(coverFiles[0].buffer, {
         folder: "share-ed/posts/covers",
@@ -442,21 +493,7 @@ export const createPost = async (req, res) => {
     })();
 
     const mediaPromise = (async () => {
-      if (Array.isArray(directMedia) && directMedia.length > 0) {
-        return directMedia.map(m => {
-          if (typeof m === "string") {
-            const isPdf = m.toLowerCase().endsWith(".pdf") || m.includes("/raw/") || m.includes("/pdfs/");
-            return {
-              media_url: m,
-              media_type: isPdf ? "PDF" : "IMAGE"
-            };
-          }
-          return {
-            media_url: m.url || m.media_url,
-            media_type: m.media_type || (m.url?.toLowerCase().endsWith(".pdf") ? "PDF" : "IMAGE")
-          };
-        });
-      }
+      if (verifiedDirectMedia.length > 0) return verifiedDirectMedia;
 
       if (!mediaFiles || mediaFiles.length === 0) return [];
       return mapWithConcurrency(mediaFiles, 4, async file => {
@@ -1039,22 +1076,20 @@ export const getPlatformStats = async (req, res) => {
 // GET /api/v1/posts/upload-signature
 // สร้าง Cloudinary Signature สำหรับ Direct Client Upload
 // ============================================================
-const DIRECT_UPLOAD_TYPES = new Set(["cover", "media", "pdf"]);
+const DIRECT_UPLOAD_TYPES = new Set(Object.keys(DIRECT_UPLOAD_POLICIES));
 
-function directUploadSignature(type, timestamp) {
-  let folder = "share-ed/posts/media";
-  if (type === "cover") folder = "share-ed/posts/covers";
-  else if (type === "pdf") folder = "share-ed/posts/pdfs";
-
-  const paramsToSign = { folder, timestamp };
+function directUploadSignature(type, timestamp, userId) {
+  const policy = DIRECT_UPLOAD_POLICIES[type];
+  const paramsToSign = directUploadParams(type, userId, timestamp);
   return {
     type,
     signature: cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET),
     timestamp,
     apiKey: process.env.CLOUDINARY_API_KEY,
     cloudName: process.env.CLOUDINARY_CLOUD_NAME,
-    folder,
-    uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/auto/upload`,
+    folder: paramsToSign.folder,
+    uploadParams: paramsToSign,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/${policy.resourceType}/upload`,
   };
 }
 
@@ -1072,7 +1107,7 @@ export const getUploadSignature = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: directUploadSignature(type, timestamp),
+      data: directUploadSignature(type, timestamp, req.user.id),
     });
   } catch (error) {
     logError("controllers.getUploadSignature", error, req);
@@ -1088,11 +1123,11 @@ export const getUploadSignature = async (req, res) => {
 export const getUploadSignatures = async (req, res) => {
   try {
     const types = req.body?.types;
-    if (!Array.isArray(types) || types.length === 0 || types.length > 3) {
+    if (!Array.isArray(types) || types.length === 0 || types.length > 4) {
       return res.status(400).json({
         success: false,
         code: "INVALID_UPLOAD_TYPES",
-        message: "กรุณาระบุประเภทการอัปโหลด 1–3 ประเภท",
+        message: "กรุณาระบุประเภทการอัปโหลด 1–4 ประเภท",
       });
     }
     const uniqueTypes = [...new Set(types)];
@@ -1106,7 +1141,7 @@ export const getUploadSignatures = async (req, res) => {
 
     const timestamp = Math.round(Date.now() / 1000);
     const uploads = Object.fromEntries(
-      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp)])
+      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp, req.user.id)])
     );
     return res.status(200).json({ success: true, data: { uploads } });
   } catch (error) {

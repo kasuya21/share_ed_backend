@@ -2,8 +2,24 @@ const EDUCATION_LEVELS = ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"];
 export const POST_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 export const POST_MEDIA_TYPES = [...POST_IMAGE_TYPES, "application/pdf"];
 
+function parseJson(value) {
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return undefined; }
+}
+
 export function validateNewPost(body, files) {
-  const result = validatePostFields(body);
+  const isDraft = body?.post_status === "DRAFT";
+  const result = isDraft
+    ? {
+        errors: {},
+        values: {
+          title: typeof body?.title === "string" && body.title.trim() ? body.title.trim() : "Untitled draft",
+          summary: typeof body?.summary === "string" ? body.summary.trim() : "",
+          education_level: EDUCATION_LEVELS.includes(body?.education_level) ? body.education_level : "UNIVERSITY",
+        },
+        valid: true,
+      }
+    : validatePostFields(body);
   const category = body?.category_id;
   const categoryName = body?.category;
   if (category !== undefined && category !== null && typeof category !== "string") {
@@ -13,26 +29,24 @@ export function validateNewPost(body, files) {
   } else if (typeof categoryName === "string" && categoryName.trim()) {
     // The frontend sends a name when it cannot resolve a category UUID.
     result.values.category = categoryName.trim();
-  } else {
+  } else if (!isDraft) {
     result.errors.category_id = { code: "REQUIRED", message: "กรุณาเลือกหมวดหมู่วิชา" };
   }
   const hasCoverFile = Boolean(files?.cover_image?.length);
-  const directCoverUrl = body?.cover_image_url || (typeof body?.cover_image === "string" && (body.cover_image.startsWith("http://") || body.cover_image.startsWith("https://")) ? body.cover_image : null);
+  const directCover = parseJson(body?.cover_upload);
+  const hasDirectCover = Boolean(directCover && typeof directCover === "object" && !Array.isArray(directCover));
 
-  if (!hasCoverFile && !directCoverUrl) {
+  if (!isDraft && !hasCoverFile && !hasDirectCover) {
     result.errors.cover_image = { code: "REQUIRED", message: "กรุณาอัปโหลดรูปปก" };
   } else if (hasCoverFile && (files.cover_image.length !== 1 || !POST_IMAGE_TYPES.includes(files.cover_image[0].mimetype))) {
     result.errors.cover_image = { code: "INVALID_TYPE", message: "รูปปกต้องเป็นรูปภาพ JPG, PNG หรือ WebP จำนวน 1 ไฟล์" };
   }
 
   const hasMediaFiles = Boolean(files?.media_files?.length);
-  let directMedia = body?.media_files_urls || body?.media_urls || body?.media;
-  if (typeof directMedia === "string") {
-    try { directMedia = JSON.parse(directMedia); } catch {}
-  }
+  const directMedia = parseJson(body?.media_uploads);
   const hasDirectMedia = Array.isArray(directMedia) && directMedia.length > 0;
 
-  if (!hasMediaFiles && !hasDirectMedia) {
+  if (!isDraft && !hasMediaFiles && !hasDirectMedia) {
     result.errors.media_files = { code: "REQUIRED", message: "กรุณาแนบไฟล์ PDF หรือรูปภาพอย่างน้อย 1 ไฟล์" };
   } else if (hasMediaFiles && files.media_files.some(file => !POST_MEDIA_TYPES.includes(file.mimetype))) {
     result.errors.media_files = { code: "INVALID_TYPE", message: "ไฟล์แนบต้องเป็น PDF หรือรูปภาพ JPG, PNG, WebP เท่านั้น" };

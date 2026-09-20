@@ -104,12 +104,13 @@ test("upload signature generation signs folder and timestamp", async () => {
   process.env.CLOUDINARY_API_SECRET = "test-api-secret";
   process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
   const result = response();
-  await getUploadSignature({ query: { type: "cover" } }, result.res);
+  await getUploadSignature({ query: { type: "cover" }, user: { id: "user-1" } }, result.res);
   assert.equal(result.status, 200);
   assert.equal(result.body.success, true);
   assert.equal(result.body.data.apiKey, "test-api-key");
   assert.equal(result.body.data.cloudName, "test-cloud");
-  assert.equal(result.body.data.folder, "share-ed/posts/covers");
+  assert.equal(result.body.data.folder, "share-ed/users/user-1/posts/covers");
+  assert.equal(result.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,webp");
   assert.ok(typeof result.body.data.signature === "string");
   assert.ok(typeof result.body.data.timestamp === "number");
 });
@@ -129,21 +130,22 @@ test("batch upload signatures return all configs needed for concurrent direct up
   process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
   const result = response();
 
-  await getUploadSignatures({ body: { types: ["cover", "media", "pdf"] } }, result.res);
+  await getUploadSignatures({ body: { types: ["cover", "media", "pdf"] }, user: { id: "user-1" } }, result.res);
 
   assert.equal(result.status, 200);
   assert.deepEqual(Object.keys(result.body.data.uploads), ["cover", "media", "pdf"]);
-  assert.equal(result.body.data.uploads.cover.folder, "share-ed/posts/covers");
-  assert.equal(result.body.data.uploads.media.folder, "share-ed/posts/media");
-  assert.equal(result.body.data.uploads.pdf.folder, "share-ed/posts/pdfs");
+  assert.equal(result.body.data.uploads.cover.folder, "share-ed/users/user-1/posts/covers");
+  assert.equal(result.body.data.uploads.media.folder, "share-ed/users/user-1/posts/media");
+  assert.equal(result.body.data.uploads.pdf.folder, "share-ed/users/user-1/posts/pdfs");
   assert.equal(result.body.data.uploads.cover.timestamp, result.body.data.uploads.pdf.timestamp);
-  assert.match(result.body.data.uploads.media.uploadUrl, /\/auto\/upload$/);
+  assert.match(result.body.data.uploads.media.uploadUrl, /\/image\/upload$/);
+  assert.match(result.body.data.uploads.pdf.uploadUrl, /\/raw\/upload$/);
 });
 
 test("batch upload signatures reject invalid request shapes and upload types", async () => {
   const { getUploadSignatures } = await import("../controllers/post.controller.js");
 
-  for (const types of [undefined, [], ["cover", "media", "pdf", "cover"]]) {
+  for (const types of [undefined, [], ["cover", "media", "pdf", "content", "cover"]]) {
     const result = response();
     await getUploadSignatures({ body: { types } }, result.res);
     assert.equal(result.status, 400);
