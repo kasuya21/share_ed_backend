@@ -21,15 +21,21 @@ function imageAsset(overrides = {}) {
 
 test("direct upload parameters isolate files by user and restrict formats", () => {
   assert.deepEqual(directUploadParams("cover", "user-1", 123), {
+    return_delete_token: true,
     allowed_formats: "jpg,jpeg,png,webp",
     folder: "share-ed/users/user-1/posts/covers",
     timestamp: 123,
   });
   assert.deepEqual(directUploadParams("pdf", "user-1", 123), {
+    return_delete_token: true,
     allowed_formats: "pdf",
     folder: "share-ed/users/user-1/posts/pdfs",
     timestamp: 123,
   });
+  assert.equal(
+    directUploadParams("cover", "user-1", 123, "session-1").folder,
+    "share-ed/users/user-1/upload-sessions/session-1/covers"
+  );
 });
 
 test("verified Cloudinary metadata is converted to post media", () => {
@@ -63,4 +69,27 @@ test("direct uploads reject forged signatures, URLs, folders and oversized files
   ]) {
     assert.throws(() => verifyDirectUploadAsset(asset, options), DirectUploadValidationError);
   }
+});
+
+test("session-scoped verification rejects an asset from another upload session", () => {
+  assert.throws(() => verifyDirectUploadAsset(imageAsset(), {
+    type: "cover",
+    userId: "user-1",
+    sessionId: "session-1",
+    cloudName: "test-cloud",
+    field: "cover_upload",
+    verifySignature: () => true,
+  }), DirectUploadValidationError);
+});
+
+test("provider size overrides forged client bytes", async () => {
+  const { verifyStoredDirectUpload } = await import("../utils/direct-upload.js");
+  await assert.rejects(verifyStoredDirectUpload(imageAsset({bytes:1}), {
+    type:"cover", userId:"user-1", cloudName:"test-cloud", verifySignature:()=>true,
+  }, async()=>imageAsset({bytes:3*1024*1024})), /ขนาดไฟล์/);
+});
+test("direct media count and duplicates are rejected", async () => {
+  const { validateDirectUploadList } = await import("../utils/direct-upload.js");
+  assert.throws(()=>validateDirectUploadList(null, Array(16).fill(imageAsset())));
+  assert.throws(()=>validateDirectUploadList(imageAsset(), [imageAsset()]));
 });

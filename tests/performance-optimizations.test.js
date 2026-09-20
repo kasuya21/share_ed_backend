@@ -123,23 +123,28 @@ test("upload signature rejects unknown upload types", async () => {
   assert.equal(result.body.code, "INVALID_UPLOAD_TYPE");
 });
 
-test("batch upload signatures return all configs needed for concurrent direct uploads", async () => {
+test("batch upload signatures create an expiring session and scope every upload to it", async t => {
   const { getUploadSignatures } = await import("../controllers/post.controller.js");
   process.env.CLOUDINARY_API_KEY = "test-api-key";
   process.env.CLOUDINARY_API_SECRET = "test-api-secret";
   process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
+  const sessionCreate = replace(t, prisma.uploadSession, "create", async ({ data }) => data);
   const result = response();
 
   await getUploadSignatures({ body: { types: ["cover", "media", "pdf"] }, user: { id: "user-1" } }, result.res);
 
   assert.equal(result.status, 200);
+  assert.match(result.body.data.sessionId, /^[a-f0-9-]{36}$/);
+  assert.ok(Date.parse(result.body.data.expiresAt) > Date.now());
   assert.deepEqual(Object.keys(result.body.data.uploads), ["cover", "media", "pdf"]);
-  assert.equal(result.body.data.uploads.cover.folder, "share-ed/users/user-1/posts/covers");
-  assert.equal(result.body.data.uploads.media.folder, "share-ed/users/user-1/posts/media");
-  assert.equal(result.body.data.uploads.pdf.folder, "share-ed/users/user-1/posts/pdfs");
+  const prefix = `share-ed/users/user-1/upload-sessions/${result.body.data.sessionId}`;
+  assert.equal(result.body.data.uploads.cover.folder, `${prefix}/covers`);
+  assert.equal(result.body.data.uploads.media.folder, `${prefix}/media`);
+  assert.equal(result.body.data.uploads.pdf.folder, `${prefix}/pdfs`);
   assert.equal(result.body.data.uploads.cover.timestamp, result.body.data.uploads.pdf.timestamp);
   assert.match(result.body.data.uploads.media.uploadUrl, /\/image\/upload$/);
   assert.match(result.body.data.uploads.pdf.uploadUrl, /\/raw\/upload$/);
+  assert.deepEqual(sessionCreate.mock.calls[0].arguments[0].data.requested_types, ["cover", "media", "pdf"]);
 });
 
 test("batch upload signatures reject invalid request shapes and upload types", async () => {
@@ -159,3 +164,34 @@ test("batch upload signatures reject invalid request shapes and upload types", a
 });
 
 
+
+test("unknown category names cannot publish uncategorized posts", async t => {
+  const { createPost } = await import("../controllers/post.controller.js");
+  const lookup = replace(t, prisma.category, "findUnique", async () => null);
+  const create = replace(t, prisma.post, "create", async () => { throw new Error("Must not save"); });
+  const result = response();
+  await createPost({user:{id:"user-1"},body:{post_status:"ACTIVE",title:"Title",summary:"Summary",education_level:"UNIVERSITY",category:"Unknown",cover_upload:{public_id:"cover"},media_uploads:[{public_id:"media"}]}},result.res);
+  assert.equal(result.status,400);
+  assert.deepEqual(lookup.mock.calls[0].arguments[0].where,{name:"Unknown"});
+  assert.equal(create.mock.callCount(),0);
+});
+
+test("post creation retry returns the existing post for the same idempotency key", async t => {
+  const { createPost } = await import("../controllers/post.controller.js");
+  const existing = { id: "post-1", title: "Already created" };
+  const findFirst = replace(t, prisma.post, "findFirst", async () => existing);
+  const result = response();
+
+  await createPost({
+    user: { id: "user-1" },
+    body: { idempotency_key: "retry-key-123456789" },
+  }, result.res);
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.replayed, true);
+  assert.equal(result.body.data, existing);
+  assert.deepEqual(findFirst.mock.calls[0].arguments[0].where, {
+    author_id: "user-1",
+    idempotency_key: "retry-key-123456789",
+  });
+});

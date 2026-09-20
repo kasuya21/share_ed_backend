@@ -12,7 +12,8 @@ import {
   DIRECT_UPLOAD_POLICIES,
   DirectUploadValidationError,
   directUploadParams,
-  verifyDirectUploadAsset,
+  verifyStoredDirectUpload,
+  validateDirectUploadList,
 } from "../utils/direct-upload.js";
 
 // In-Memory Caches for heavy home page queries
@@ -29,6 +30,22 @@ const AUTHOR_FRAME_SELECT = {
     select: { id: true, item_name: true, image_url: true, metadata: true }
   }
 };
+
+const POST_CREATE_INCLUDE = {
+  author: { select: AUTHOR_FRAME_SELECT },
+  tags: { include: { tag: true } },
+  media: true,
+};
+
+const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9_-]{16,128}$/;
+
+async function findCreatedPost(authorId, idempotencyKey) {
+  if (!idempotencyKey) return null;
+  return prisma.post.findFirst({
+    where: { author_id: authorId, idempotency_key: idempotencyKey },
+    include: POST_CREATE_INCLUDE,
+  });
+}
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
@@ -385,10 +402,35 @@ export const getPostById = async (req, res) => {
 export const createPost = async (req, res) => {
   let stage = "validate";
   try {
-    const { content = "", post_status, tags } = req.body || {};
+    const {
+      content = "",
+      post_status,
+      tags,
+      upload_session_id: uploadSessionId,
+      idempotency_key: idempotencyKey,
+    } = req.body || {};
     const validation = validateNewPost(req.body, req.files);
-    const { title, summary, education_level, category_id } = validation.values;
+    const { title, summary, education_level } = validation.values;
+    let { category_id } = validation.values;
     const author_id = req.user.id;
+
+    if (idempotencyKey != null && !IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_IDEMPOTENCY_KEY",
+        message: "รหัสป้องกันการสร้างโพสต์ซ้ำไม่ถูกต้อง",
+      });
+    }
+
+    const replayedPost = await findCreatedPost(author_id, idempotencyKey);
+    if (replayedPost) {
+      return res.status(200).json({
+        success: true,
+        replayed: true,
+        message: "โพสต์นี้ถูกสร้างไว้แล้ว",
+        data: replayedPost,
+      });
+    }
 
     if (!validation.valid) {
       logWarn("post.create.rejected", undefined, req, {
@@ -406,8 +448,10 @@ export const createPost = async (req, res) => {
     stage = "category_lookup";
     const category = category_id
       ? await prisma.category.findUnique({ where: { id: category_id }, select: { id: true } })
-      : null;
-    if (category_id && !category) {
+      : validation.values.category
+        ? await prisma.category.findUnique({ where: { name: validation.values.category }, select: { id: true } })
+        : null;
+    if (!category && (post_status !== "DRAFT" || category_id || validation.values.category)) {
       logWarn("post.create.rejected", undefined, req, { stage, invalidFields: "category_id" });
       return res.status(400).json({
         success: false, code: "POST_CATEGORY_NOT_FOUND", message: "กรุณาตรวจสอบข้อมูลโพสต์", errors: {
@@ -415,6 +459,7 @@ export const createPost = async (req, res) => {
         }
       });
     }
+    category_id = category?.id || null;
     const coverFiles = req.files?.cover_image;
     const mediaFiles = req.files?.media_files;
 
@@ -422,33 +467,64 @@ export const createPost = async (req, res) => {
     const directMedia = parseJsonValue(req.body?.media_uploads);
     let verifiedCoverUrl = null;
     let verifiedDirectMedia = [];
+    let verifiedSessionAssets = null;
 
     if (directCover || directMedia) {
       stage = "direct_upload_verify";
       try {
+        if (!idempotencyKey) {
+          throw new DirectUploadValidationError("ไม่พบรหัสป้องกันการสร้างโพสต์ซ้ำ", "idempotency_key");
+        }
+        if (typeof uploadSessionId !== "string" || !/^[a-f0-9-]{36}$/i.test(uploadSessionId)) {
+          throw new DirectUploadValidationError("ไม่พบ upload session ที่ถูกต้อง", "upload_session_id");
+        }
+        const uploadSession = await prisma.uploadSession.findFirst({
+          where: {
+            id: uploadSessionId,
+            user_id: author_id,
+            status: "PENDING",
+            expires_at: { gt: new Date() },
+          },
+          select: { id: true },
+        });
+        if (!uploadSession) {
+          throw new DirectUploadValidationError("upload session หมดอายุ ถูกใช้แล้ว หรือไม่ใช่ของผู้ใช้งาน", "upload_session_id");
+        }
+
+        validateDirectUploadList(directCover, directMedia ?? []);
+        let totalBytes = 0;
+        const sessionAssets = [];
+        const lookup = (id, options) => cloudinary.api.resource(id, { ...options, timeout: 15000 });
         const verification = {
           userId: author_id,
+          sessionId: uploadSessionId,
           cloudName: process.env.CLOUDINARY_CLOUD_NAME,
           verifySignature: (publicId, version, signature) =>
             cloudinary.utils.verify_api_response_signature(publicId, version, signature),
         };
         if (directCover) {
-          verifiedCoverUrl = verifyDirectUploadAsset(directCover, {
+          const verifiedCover = await verifyStoredDirectUpload(directCover, {
             ...verification,
             type: "cover",
             field: "cover_upload",
-          }).media_url;
+          }, lookup);
+          verifiedCoverUrl = verifiedCover.media_url;
+          totalBytes += verifiedCover.bytes;
+          sessionAssets.push({ public_id: directCover.public_id, type: "cover", bytes: verifiedCover.bytes });
         }
         if (Array.isArray(directMedia)) {
-          verifiedDirectMedia = directMedia.map((asset, index) => {
+          verifiedDirectMedia = await mapWithConcurrency(directMedia, 4, async (asset, index) => {
             const type = asset?.resource_type === "raw" || asset?.format === "pdf" ? "pdf" : "media";
-            return verifyDirectUploadAsset(asset, {
-              ...verification,
-              type,
-              field: `media_uploads.${index}`,
-            });
+            const verified = await verifyStoredDirectUpload(asset, {
+              ...verification, type, field: `media_uploads.${index}`,
+            }, lookup);
+            totalBytes += verified.bytes;
+            sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
+            return { media_url: verified.media_url, media_type: verified.media_type };
           });
         }
+        if (totalBytes > 50 * 1024 * 1024) throw new DirectUploadValidationError("ขนาดไฟล์รวมเกิน 50 MB");
+        verifiedSessionAssets = sessionAssets;
       } catch (error) {
         if (!(error instanceof DirectUploadValidationError)) throw error;
         logWarn("post.create.direct_upload_rejected", error, req, { stage, field: error.field });
@@ -535,34 +611,52 @@ export const createPost = async (req, res) => {
 
     // 5. บันทึกโพสต์ แท็ก และไฟล์แนบในคำสั่งเดียว (Single atomic query)
     stage = "database_create";
-    const post = await prisma.post.create({
-      data: {
-        id: postId,
-        title,
-        summary: summary || "",
-        content,
-        education_level,
-        author_id,
-        category_id: category_id || null,
-        post_status: finalStatus,
-        cover_image,
-        tags: {
-          create: postTagConnects
-        },
-        media: {
-          create: mediaData
-        }
+    const createData = {
+      id: postId,
+      title,
+      summary: summary || "",
+      content,
+      education_level,
+      author_id,
+      category_id: category_id || null,
+      post_status: finalStatus,
+      cover_image,
+      idempotency_key: idempotencyKey || null,
+      tags: {
+        create: postTagConnects
       },
-      include: {
-        author: {
-          select: AUTHOR_FRAME_SELECT
-        },
-        tags: {
-          include: { tag: true }
-        },
-        media: true
+      media: {
+        create: mediaData
       }
+    };
+    const createPostQuery = client => client.post.create({
+      data: {
+        ...createData,
+      },
+      include: POST_CREATE_INCLUDE,
     });
+    const post = uploadSessionId
+      ? await prisma.$transaction(async transaction => {
+          const created = await createPostQuery(transaction);
+          const committed = await transaction.uploadSession.updateMany({
+            where: {
+              id: uploadSessionId,
+              user_id: author_id,
+              status: "PENDING",
+              expires_at: { gt: new Date() },
+            },
+            data: {
+              status: "COMMITTED",
+              post_id: created.id,
+              verified_assets: verifiedSessionAssets,
+            },
+          });
+          if (committed.count !== 1) {
+            throw new DirectUploadValidationError("upload session ถูกใช้แล้วหรือหมดอายุ", "upload_session_id");
+          }
+          return created;
+        })
+      : await createPostQuery(prisma);
 
     // 🔔 แจ้งเตือน Followers และคำนวณ Achievement แบบ Background (Non-blocking)
     if (post.post_status === "ACTIVE") {
@@ -607,6 +701,25 @@ export const createPost = async (req, res) => {
     });
 
   } catch (error) {
+    if (error?.code === "P2002" && req.body?.idempotency_key) {
+      const replayedPost = await findCreatedPost(req.user.id, req.body.idempotency_key);
+      if (replayedPost) {
+        return res.status(200).json({
+          success: true,
+          replayed: true,
+          message: "โพสต์นี้ถูกสร้างไว้แล้ว",
+          data: replayedPost,
+        });
+      }
+    }
+    if (error instanceof DirectUploadValidationError) {
+      return res.status(409).json({
+        success: false,
+        code: error.code,
+        message: "ไม่สามารถยืนยัน upload session ได้",
+        errors: { [error.field]: { code: error.code, message: error.message } },
+      });
+    }
     logError("post.create.failed", error, req, {
       stage,
       coverFileCount: req.files?.cover_image?.length || 0,
@@ -1078,9 +1191,9 @@ export const getPlatformStats = async (req, res) => {
 // ============================================================
 const DIRECT_UPLOAD_TYPES = new Set(Object.keys(DIRECT_UPLOAD_POLICIES));
 
-function directUploadSignature(type, timestamp, userId) {
+function directUploadSignature(type, timestamp, userId, sessionId) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
-  const paramsToSign = directUploadParams(type, userId, timestamp);
+  const paramsToSign = directUploadParams(type, userId, timestamp, sessionId);
   return {
     type,
     signature: cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET),
@@ -1140,10 +1253,23 @@ export const getUploadSignatures = async (req, res) => {
     }
 
     const timestamp = Math.round(Date.now() / 1000);
+    const sessionId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await prisma.uploadSession.create({
+      data: {
+        id: sessionId,
+        user_id: req.user.id,
+        requested_types: uniqueTypes,
+        expires_at: expiresAt,
+      },
+    });
     const uploads = Object.fromEntries(
-      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp, req.user.id)])
+      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp, req.user.id, sessionId)])
     );
-    return res.status(200).json({ success: true, data: { uploads } });
+    return res.status(200).json({
+      success: true,
+      data: { uploads, sessionId, expiresAt: expiresAt.toISOString() },
+    });
   } catch (error) {
     logError("controllers.getUploadSignatures", error, req);
     return res.status(500).json({ success: false, message: "Failed to generate upload signatures" });

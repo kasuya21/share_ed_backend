@@ -16,19 +16,23 @@ export class DirectUploadValidationError extends Error {
   }
 }
 
-export function directUploadFolder(type, userId) {
+export function directUploadFolder(type, userId, sessionId) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   if (!policy) throw new DirectUploadValidationError("ประเภทการอัปโหลดไม่ถูกต้อง");
   const safeUserId = String(userId || "").replace(/[^a-zA-Z0-9_-]/g, "_");
   if (!safeUserId) throw new DirectUploadValidationError("ไม่พบผู้ใช้งานสำหรับการอัปโหลด");
-  return `share-ed/users/${safeUserId}/posts/${policy.folder}`;
+  const safeSessionId = sessionId ? String(sessionId).replace(/[^a-zA-Z0-9_-]/g, "_") : null;
+  return safeSessionId
+    ? `share-ed/users/${safeUserId}/upload-sessions/${safeSessionId}/${policy.folder}`
+    : `share-ed/users/${safeUserId}/posts/${policy.folder}`;
 }
 
-export function directUploadParams(type, userId, timestamp) {
+export function directUploadParams(type, userId, timestamp, sessionId) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   return {
     allowed_formats: policy.formats.join(","),
-    folder: directUploadFolder(type, userId),
+    return_delete_token: true,
+    folder: directUploadFolder(type, userId, sessionId),
     timestamp,
   };
 }
@@ -40,7 +44,7 @@ function requiredString(asset, key, field) {
   return asset[key];
 }
 
-export function verifyDirectUploadAsset(asset, { type, userId, cloudName, verifySignature, field }) {
+export function verifyDirectUploadAsset(asset, { type, userId, sessionId, cloudName, verifySignature, field }) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   if (!policy || !asset || typeof asset !== "object" || Array.isArray(asset)) {
     throw new DirectUploadValidationError("ข้อมูลไฟล์ที่อัปโหลดไม่ถูกต้อง", field);
@@ -64,7 +68,7 @@ export function verifyDirectUploadAsset(asset, { type, userId, cloudName, verify
     throw new DirectUploadValidationError("ขนาดไฟล์เกินกำหนด", field);
   }
 
-  const expectedFolder = directUploadFolder(type, userId);
+  const expectedFolder = directUploadFolder(type, userId, sessionId);
   if (!publicId.startsWith(`${expectedFolder}/`)) {
     throw new DirectUploadValidationError("ไฟล์ไม่ได้อยู่ในพื้นที่ของผู้ใช้งาน", field);
   }
@@ -92,4 +96,34 @@ export function verifyDirectUploadAsset(asset, { type, userId, cloudName, verify
     media_url: secureUrl,
     media_type: type === "pdf" ? "PDF" : "IMAGE",
   };
+}
+
+// The response signature does not authenticate bytes or format. Read those from
+// the provider over the authenticated Admin API before accepting an asset.
+export async function verifyStoredDirectUpload(asset, options, lookup) {
+  verifyDirectUploadAsset(asset, options);
+  const stored = await lookup(asset.public_id, {
+    resource_type: DIRECT_UPLOAD_POLICIES[options.type].resourceType,
+    type: "upload",
+  });
+  if (stored.public_id !== asset.public_id || Number(stored.version) !== Number(asset.version)) {
+    throw new DirectUploadValidationError("เวอร์ชันไฟล์ไม่ตรงกับ Cloudinary", options.field);
+  }
+  const authoritative = { ...stored, signature: asset.signature };
+  const result = verifyDirectUploadAsset(authoritative, options);
+  return { ...result, bytes: stored.bytes };
+}
+
+export function validateDirectUploadList(cover, media = []) {
+  if (!Array.isArray(media) || media.length > 15) {
+    throw new DirectUploadValidationError("แนบไฟล์ได้สูงสุด 15 ไฟล์");
+  }
+  const ids = new Set();
+  for (const asset of [cover, ...media].filter(Boolean)) {
+    if (!asset || typeof asset !== "object" || typeof asset.public_id !== "string") {
+      throw new DirectUploadValidationError("ข้อมูลไฟล์ไม่ถูกต้อง");
+    }
+    if (ids.has(asset.public_id)) throw new DirectUploadValidationError("ไม่สามารถแนบไฟล์ซ้ำได้");
+    ids.add(asset.public_id);
+  }
 }
