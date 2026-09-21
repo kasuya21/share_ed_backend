@@ -49,7 +49,9 @@ export const createComment = async (req, res) => {
       await createNotification(
         post.author_id,
         "NEW_COMMENT",
-        `${commenter.username} commented on your post "${post.title}"`
+        `${commenter.username} commented on your post "${post.title}"`,
+        post_id,
+        user_id
       );
     }
 
