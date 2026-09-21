@@ -67,6 +67,12 @@ enum PostStatus {
   UNACTIVED
 }
 
+enum UploadSessionStatus {
+  PENDING
+  COMMITTED
+  EXPIRED
+}
+
 //////////////////////////////////////////////////////
 // USER
 //////////////////////////////////////////////////////
@@ -118,6 +124,7 @@ model User {
   user_achievements UserAchievement[]
   views             PostView[]
   reports           Report[]
+  upload_sessions   UploadSession[]
 
   @@index([username])
   @@index([email])
@@ -151,20 +158,23 @@ model Post {
   category_id String?
   category    Category? @relation(fields: [category_id], references: [id])
 
-  cover_image String?
+  cover_image     String?
+  idempotency_key String?
 
-  media         PostMedia[]
-  comments      Comment[]
-  likes         Like[]
-  bookmarks     Bookmark[]
-  tags          PostTag[]
-  views         PostView[]
-  reports       Report[]
-  notifications Notification[]
+  media           PostMedia[]
+  comments        Comment[]
+  likes           Like[]
+  bookmarks       Bookmark[]
+  tags            PostTag[]
+  views           PostView[]
+  reports         Report[]
+  notifications   Notification[]
+  upload_sessions UploadSession[]
 
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 
+  @@unique([author_id, idempotency_key])
   @@index([author_id])
   @@index([education_level])
   @@index([created_at])
@@ -173,6 +183,24 @@ model Post {
   @@index([post_status, created_at])
   @@index([post_status, view_count])
   @@map("posts")
+}
+
+model UploadSession {
+  id              String              @id @default(uuid()) @map("upload_session_id")
+  user_id         String
+  user            User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  post_id         String?
+  post            Post?               @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  status          UploadSessionStatus @default(PENDING)
+  requested_types Json
+  verified_assets Json?
+  expires_at      DateTime
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+
+  @@index([user_id, status])
+  @@index([status, expires_at])
+  @@map("upload_sessions")
 }
 
 //////////////////////////////////////////////////////

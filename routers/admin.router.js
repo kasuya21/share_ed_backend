@@ -28,7 +28,7 @@ import {
   updateCategory,
   deleteCategory
 } from "../controllers/category.controller.js";
-import { upload } from "../middlewares/upload.middleware.js";
+import { adminImageUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
 
 const router = express.Router();
 
@@ -49,8 +49,8 @@ router.patch("/users/:id/activate", activateUser);
 
 // Reward Management
 router.get("/rewards", getAllRewards);
-router.post("/rewards", upload.single("image"), createReward);
-router.put("/rewards/:id", upload.single("image"), updateReward);
+router.post("/rewards", uploadConcurrencyGuard, adminImageUpload.single("image"), createReward);
+router.put("/rewards/:id", uploadConcurrencyGuard, adminImageUpload.single("image"), updateReward);
 router.patch("/rewards/:id/status", toggleRewardStatus);
 router.delete("/rewards/:id", deleteReward);
 
@@ -59,8 +59,8 @@ router.patch("/achievements/:id/reward", mapRewardToAchievement);
 
 // Achievement Management
 router.get("/achievements", getAllAchievements);
-router.post("/achievements", upload.single("image"), createAchievement);
-router.put("/achievements/:id", upload.single("image"), updateAchievement);
+router.post("/achievements", uploadConcurrencyGuard, adminImageUpload.single("image"), createAchievement);
+router.put("/achievements/:id", uploadConcurrencyGuard, adminImageUpload.single("image"), updateAchievement);
 router.delete("/achievements/:id", deleteAchievement);
 
 // Category Management
