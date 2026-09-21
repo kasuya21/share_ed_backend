@@ -30,12 +30,6 @@ export const createComment = async (req, res) => {
       },
     });
 
-    res.status(201).json({
-      success: true,
-      message: "ส่งความคิดเห็นสำเร็จ",
-      data: comment
-    });
-
     // 🔔 แจ้งเจ้าของโพสต์ว่ามีคนเข้ามา comment (ไม่แจ้งตัวเอง)
     const post = await prisma.post.findUnique({
       where: { id: post_id },
@@ -60,6 +54,12 @@ export const createComment = async (req, res) => {
       where: { user_id }
     });
     await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
+
+    res.status(201).json({
+      success: true,
+      message: "ส่งความคิดเห็นสำเร็จ",
+      data: comment
+    });
   } catch (err) {
     logError("controllers.createComment", err, req);
     if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
