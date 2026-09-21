@@ -51,6 +51,12 @@ async function findCreatedPost(authorId, idempotencyKey) {
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 50;
+const TRENDING_WINDOWS_MS = Object.freeze({
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+});
+const TRENDING_LEVELS = new Set(["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"]);
 
 function positiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number.parseInt(value, 10);
@@ -68,6 +74,29 @@ async function mapWithConcurrency(items, concurrency, operation) {
   }
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
   return results;
+}
+
+export async function recordPostView(userId, postId, viewedAt = new Date()) {
+  const existingView = await prisma.postView.findUnique({
+    where: { user_id_post_id: { user_id: userId, post_id: postId } },
+    select: { id: true },
+  });
+  if (existingView) {
+    await prisma.postView.update({
+      where: { id: existingView.id },
+      data: { viewed_at: viewedAt },
+    });
+    return { created: false };
+  }
+
+  await prisma.$transaction([
+    prisma.postView.create({ data: { user_id: userId, post_id: postId, viewed_at: viewedAt } }),
+    prisma.post.update({
+      where: { id: postId },
+      data: { view_count: { increment: 1 } },
+    }),
+  ]);
+  return { created: true };
 }
 
 async function preparePostTags(values) {
@@ -368,20 +397,7 @@ export const getPostById = async (req, res) => {
     // 4.1.3.3 นับจำนวนครั้งเข้าชม (Async non-blocking ใน background)
     (async () => {
       try {
-        const existingView = await prisma.postView.findUnique({
-          where: {
-            user_id_post_id: { user_id: userId, post_id: id }
-          }
-        });
-        if (!existingView) {
-          await prisma.$transaction([
-            prisma.postView.create({ data: { user_id: userId, post_id: id } }),
-            prisma.post.update({
-              where: { id },
-              data: { view_count: { increment: 1 } }
-            })
-          ]);
-        }
+        await recordPostView(userId, id);
       } catch (e) {
         logWarn("post.view_tracking_failed", e, req, { postId: id });
       }
@@ -1038,26 +1054,55 @@ export const getUserPosts = async (req, res) => {
 
 // ============================================================
 // GET /api/v1/posts/trending
-// ดึงโพสต์ยอดนิยมประจำสัปดาห์ (Trending Now) 3 อันดับแรก (รองรับการกรองตามชั้นเรียน)
+// จัดอันดับจากจำนวนผู้ชมล่าสุด รองรับช่วง 24 ชั่วโมง, 7 วัน และ 30 วัน
 // ============================================================
 export const getTrendingPosts = async (req, res) => {
   try {
     res.setHeader?.("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
-    const { level } = req.query; // MIDDLE_SCHOOL, HIGH_SCHOOL, UNIVERSITY
-    const cacheKey = level || "ALL";
-    const cached = trendingPostsCache.get(cacheKey);
-    if (cached) {
-      return res.status(200).json({ success: true, data: cached });
+    const { level, window: requestedWindow = "7d", limit: requestedLimit } = req.query || {};
+    if (level && !TRENDING_LEVELS.has(level)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_EDUCATION_LEVEL",
+        message: "ระดับชั้นการศึกษาไม่ถูกต้อง",
+      });
+    }
+    if (!Object.hasOwn(TRENDING_WINDOWS_MS, requestedWindow)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_TRENDING_WINDOW",
+        message: "ช่วงเวลา Trending ต้องเป็น 24h, 7d หรือ 30d",
+      });
+    }
+    if (requestedLimit !== undefined && !/^\d+$/.test(String(requestedLimit))) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_TRENDING_LIMIT",
+        message: "จำนวนโพสต์ Trending ต้องเป็นเลขจำนวนเต็ม 1–20",
+      });
+    }
+    const parsedLimit = requestedLimit === undefined ? 3 : Number(requestedLimit);
+    if (!Number.isSafeInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 20) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_TRENDING_LIMIT",
+        message: "จำนวนโพสต์ Trending ต้องอยู่ระหว่าง 1–20",
+      });
     }
 
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
+    const cacheKey = `${level || "ALL"}:${requestedWindow}:${parsedLimit}`;
+    const cached = trendingPostsCache.get(cacheKey);
+    if (cached) {
+      return res.status(200).json({ success: true, ...cached });
+    }
 
-    // ดึงโพสต์ที่มีคนเข้าชมมากที่สุด 3 อันดับแรกใน 7 วันที่ผ่านมา
+    const windowStartedAt = new Date(Date.now() - TRENDING_WINDOWS_MS[requestedWindow]);
+
+    // One PostView row per user/post means this ranks unique recent viewers.
     const trendingViews = await prisma.postView.groupBy({
       by: ['post_id'],
       where: {
-        viewed_at: { gte: lastWeek },
+        viewed_at: { gte: windowStartedAt },
         post: {
           post_status: "ACTIVE",
           ...(level && { education_level: level })
@@ -1067,22 +1112,31 @@ export const getTrendingPosts = async (req, res) => {
       orderBy: {
         _count: { post_id: 'desc' }
       },
-      take: 3
+      take: parsedLimit
     });
 
     if (trendingViews.length === 0) {
-      // Fallback: ดึงโพสต์ยอดนิยมตลอดกาล
+      // A new site may have no recent views yet; show recent active posts rather
+      // than allowing old lifetime totals to dominate the trending section.
       const fallbackPosts = await prisma.post.findMany({
         where: {
           post_status: "ACTIVE",
           ...(level && { education_level: level })
         },
         select: POST_CARD_SELECT,
-        orderBy: { view_count: "desc" },
-        take: 3
+        orderBy: { created_at: "desc" },
+        take: parsedLimit
       });
-      trendingPostsCache.set(cacheKey, fallbackPosts);
-      return res.status(200).json({ success: true, data: fallbackPosts });
+      const payload = {
+        data: fallbackPosts.map(post => ({ ...post, recent_view_count: 0 })),
+        meta: {
+          window: requestedWindow,
+          window_started_at: windowStartedAt.toISOString(),
+          fallback: "latest_posts",
+        },
+      };
+      trendingPostsCache.set(cacheKey, payload);
+      return res.status(200).json({ success: true, ...payload });
     }
 
     const postIds = trendingViews.map(tv => tv.post_id);
@@ -1095,12 +1149,23 @@ export const getTrendingPosts = async (req, res) => {
       select: POST_CARD_SELECT,
     });
 
-    const sortedPosts = posts.sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id));
+    const viewCounts = new Map(trendingViews.map(item => [item.post_id, item._count.post_id]));
+    const sortedPosts = posts
+      .sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id))
+      .map(post => ({ ...post, recent_view_count: viewCounts.get(post.id) || 0 }));
 
-    trendingPostsCache.set(cacheKey, sortedPosts);
+    const payload = {
+      data: sortedPosts,
+      meta: {
+        window: requestedWindow,
+        window_started_at: windowStartedAt.toISOString(),
+        fallback: null,
+      },
+    };
+    trendingPostsCache.set(cacheKey, payload);
     res.status(200).json({
       success: true,
-      data: sortedPosts
+      ...payload,
     });
   } catch (error) {
     logError("controllers.getTrendingPosts", error, req);

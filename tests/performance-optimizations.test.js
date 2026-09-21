@@ -5,7 +5,13 @@ process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/test";
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_ANON_KEY = "test-key";
 const { prisma } = await import("../configs/prisma.js");
-const { getAllPosts, getPlatformStats } = await import("../controllers/post.controller.js");
+const {
+  getAllPosts,
+  getPlatformStats,
+  getTrendingPosts,
+  recordPostView,
+  trendingPostsCache,
+} = await import("../controllers/post.controller.js");
 const { verifyAccessToken } = await import("../utils/auth-token.js");
 
 function replace(t, object, key, implementation) {
@@ -145,6 +151,78 @@ test("batch upload signatures create an expiring session and scope every upload 
   assert.match(result.body.data.uploads.media.uploadUrl, /\/image\/upload$/);
   assert.match(result.body.data.uploads.pdf.uploadUrl, /\/raw\/upload$/);
   assert.deepEqual(sessionCreate.mock.calls[0].arguments[0].data.requested_types, ["cover", "media", "pdf"]);
+});
+
+test("trending ranks unique viewers inside the requested recent window", async t => {
+  trendingPostsCache.clear();
+  const groupBy = replace(t, prisma.postView, "groupBy", async () => [
+    { post_id: "post-2", _count: { post_id: 7 } },
+    { post_id: "post-1", _count: { post_id: 4 } },
+  ]);
+  const findMany = replace(t, prisma.post, "findMany", async () => [
+    { id: "post-1", title: "One" },
+    { id: "post-2", title: "Two" },
+  ]);
+  const result = response();
+  const before = Date.now() - 24 * 60 * 60 * 1000;
+
+  await getTrendingPosts({ query: { window: "24h", limit: "10", level: "UNIVERSITY" } }, result.res);
+
+  const query = groupBy.mock.calls[0].arguments[0];
+  assert.equal(query.take, 10);
+  assert.equal(query.where.post.education_level, "UNIVERSITY");
+  assert.ok(query.where.viewed_at.gte.getTime() >= before);
+  assert.deepEqual(findMany.mock.calls[0].arguments[0].where.id.in, ["post-2", "post-1"]);
+  assert.deepEqual(result.body.data.map(post => [post.id, post.recent_view_count]), [
+    ["post-2", 7],
+    ["post-1", 4],
+  ]);
+  assert.equal(result.body.meta.window, "24h");
+  assert.equal(result.body.meta.fallback, null);
+});
+
+test("trending validates window and limit before querying", async t => {
+  trendingPostsCache.clear();
+  const groupBy = replace(t, prisma.postView, "groupBy", async () => []);
+  for (const query of [{ window: "1y" }, { limit: "0" }, { limit: "many" }]) {
+    const result = response();
+    await getTrendingPosts({ query }, result.res);
+    assert.equal(result.status, 400);
+  }
+  assert.equal(groupBy.mock.callCount(), 0);
+});
+
+test("trending falls back to latest active posts when the window has no views", async t => {
+  trendingPostsCache.clear();
+  replace(t, prisma.postView, "groupBy", async () => []);
+  const findMany = replace(t, prisma.post, "findMany", async () => [{ id: "new-post" }]);
+  const result = response();
+
+  await getTrendingPosts({ query: { window: "7d", limit: "5" } }, result.res);
+
+  const query = findMany.mock.calls[0].arguments[0];
+  assert.deepEqual(query.orderBy, { created_at: "desc" });
+  assert.equal(query.take, 5);
+  assert.equal(result.body.data[0].recent_view_count, 0);
+  assert.equal(result.body.meta.fallback, "latest_posts");
+});
+
+test("repeat views refresh recency without increasing lifetime view count", async t => {
+  const viewedAt = new Date("2026-09-22T00:00:00.000Z");
+  replace(t, prisma.postView, "findUnique", async () => ({ id: "view-1" }));
+  const update = replace(t, prisma.postView, "update", async () => ({}));
+  const create = replace(t, prisma.postView, "create", async () => { throw new Error("must not create"); });
+  const postUpdate = replace(t, prisma.post, "update", async () => { throw new Error("must not increment"); });
+
+  const result = await recordPostView("user-1", "post-1", viewedAt);
+
+  assert.deepEqual(result, { created: false });
+  assert.deepEqual(update.mock.calls[0].arguments[0], {
+    where: { id: "view-1" },
+    data: { viewed_at: viewedAt },
+  });
+  assert.equal(create.mock.callCount(), 0);
+  assert.equal(postUpdate.mock.callCount(), 0);
 });
 
 test("batch upload signatures reject invalid request shapes and upload types", async () => {
