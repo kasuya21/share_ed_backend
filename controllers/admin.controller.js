@@ -1,6 +1,17 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import { userStatusCache } from "../middlewares/auth.middleware.js";
+
+const auditContext = (req, targetUserId, action, oldValue, newValue) => ({
+  actor_id: req.user.id,
+  target_user_id: targetUserId,
+  action,
+  old_value: oldValue,
+  new_value: newValue,
+  request_id: req.requestId || null,
+  ip_address: req.ip || req.socket?.remoteAddress || null,
+});
 
 // ดึงรายชื่อผู้ใช้ทั้งหมดในระบบ
 export const getAllUsers = async (req, res) => {
@@ -53,6 +64,14 @@ export const changeUserRole = async (req, res) => {
       });
     }
 
+    if (id === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        code: "SELF_ROLE_CHANGE_FORBIDDEN",
+        message: "ไม่สามารถเปลี่ยนบทบาทของบัญชีตนเองได้"
+      });
+    }
+
     const user = await prisma.user.findUnique({
       where: { id }
     });
@@ -78,16 +97,32 @@ export const changeUserRole = async (req, res) => {
       }
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: { role },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true
-      }
+    if (user.role === role) {
+      return res.status(200).json({
+        success: true,
+        message: "User already has this role",
+        data: { id: user.id, username: user.username, email: user.email, role: user.role }
+      });
+    }
+
+    const updatedUser = await prisma.$transaction(async tx => {
+      const updated = await tx.user.update({
+        where: { id },
+        data: { role },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true
+        }
+      });
+      await tx.adminSecurityAudit.create({
+        data: auditContext(req, id, "ROLE_CHANGED", user.role, role)
+      });
+      return updated;
     });
+
+    userStatusCache.delete(id);
 
     res.status(200).json({
       success: true,
@@ -123,10 +158,14 @@ export const banUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is already banned" });
     }
 
-    await prisma.user.update({
-      where: { id },
-      data: { status: "BANNED" }
+    await prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { status: "BANNED" } });
+      await tx.adminSecurityAudit.create({
+        data: auditContext(req, id, "STATUS_CHANGED", user.status, "BANNED")
+      });
     });
+
+    userStatusCache.delete(id);
 
     await createNotification(
       id,
@@ -156,10 +195,14 @@ export const unbanUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is not currently banned" });
     }
 
-    await prisma.user.update({
-      where: { id },
-      data: { status: "ACTIVE" }
+    await prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { status: "ACTIVE" } });
+      await tx.adminSecurityAudit.create({
+        data: auditContext(req, id, "STATUS_CHANGED", user.status, "ACTIVE")
+      });
     });
+
+    userStatusCache.delete(id);
 
     await createNotification(
       id,
@@ -194,10 +237,14 @@ export const suspendUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is already suspended" });
     }
 
-    await prisma.user.update({
-      where: { id },
-      data: { status: "SUSPENDED" }
+    await prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { status: "SUSPENDED" } });
+      await tx.adminSecurityAudit.create({
+        data: auditContext(req, id, "STATUS_CHANGED", user.status, "SUSPENDED")
+      });
     });
+
+    userStatusCache.delete(id);
 
     res.status(200).json({ success: true, message: "User suspended successfully" });
   } catch (error) {
@@ -221,10 +268,14 @@ export const activateUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is already active" });
     }
 
-    await prisma.user.update({
-      where: { id },
-      data: { status: "ACTIVE" }
+    await prisma.$transaction(async tx => {
+      await tx.user.update({ where: { id }, data: { status: "ACTIVE" } });
+      await tx.adminSecurityAudit.create({
+        data: auditContext(req, id, "STATUS_CHANGED", user.status, "ACTIVE")
+      });
     });
+
+    userStatusCache.delete(id);
 
     res.status(200).json({ success: true, message: "User activated successfully" });
   } catch (error) {
