@@ -29,18 +29,11 @@ import {
   deleteCategory
 } from "../controllers/category.controller.js";
 import { adminImageUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
-import { rateLimit } from "../utils/security.js";
 
 const router = express.Router();
 
 // All routes require authentication and ADMIN role
 router.use(authMiddleware, isAdmin);
-
-const roleChangeRateLimit = rateLimit({
-  limit: 5,
-  windowMs: 10 * 60 * 1000,
-  key: req => `admin-role:${req.user.id}`
-});
 
 const requireAal2 = (req, res, next) => {
   if (req.user.aal === "aal2") return next();
@@ -55,7 +48,7 @@ const requireAal2 = (req, res, next) => {
 router.get("/users", getAllUsers);
 
 // Change user role
-router.patch("/users/:id/role", roleChangeRateLimit, requireAal2, changeUserRole);
+router.patch("/users/:id/role", requireAal2, changeUserRole);
 
 // Ban / Unban user
 router.patch("/users/:id/ban", banUser);
