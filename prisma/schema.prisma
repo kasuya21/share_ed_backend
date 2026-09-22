@@ -133,6 +133,28 @@ model User {
 }
 
 //////////////////////////////////////////////////////
+// PRIVILEGED ACTION AUDIT
+//////////////////////////////////////////////////////
+
+model AdminSecurityAudit {
+  id String @id @default(uuid()) @map("audit_id")
+
+  actor_id       String
+  target_user_id String
+  action         String
+  old_value      String?
+  new_value      String?
+  request_id     String?
+  ip_address     String?
+
+  created_at DateTime @default(now())
+
+  @@index([actor_id, created_at])
+  @@index([target_user_id, created_at])
+  @@map("admin_security_audits")
+}
+
+//////////////////////////////////////////////////////
 // POSTS
 //////////////////////////////////////////////////////
 

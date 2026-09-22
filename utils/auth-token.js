@@ -10,6 +10,7 @@ export async function verifyAccessToken(supabase, token) {
       id: claims.sub,
       email: claims.email,
       role: claims.role,
+      aal: claims.aal,
       user_metadata: claims.user_metadata || {},
       app_metadata: claims.app_metadata || {},
     },
