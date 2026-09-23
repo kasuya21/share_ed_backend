@@ -77,13 +77,25 @@ test("platform stat counts start concurrently", async t => {
 
 test("access token verification uses signed claims", async () => {
   const calls = [];
+  const now = Math.floor(Date.now() / 1000);
   const supabase = { auth: { getClaims: async token => {
     calls.push(token);
-    return { data: { claims: { sub: "user-1", email: "user@example.com" } }, error: null };
+    return { data: { claims: { sub: "user-1", email: "user@example.com", iat: now, exp: now + 3600 } }, error: null };
   } } };
   const result = await verifyAccessToken(supabase, "signed-token");
   assert.deepEqual(calls, ["signed-token"]);
   assert.equal(result.user.id, "user-1");
+});
+
+test("access tokens issued for longer than one hour are rejected", async () => {
+  const now = Math.floor(Date.now() / 1000);
+  const supabase = { auth: { getClaims: async () => ({
+    data: { claims: { sub: "user-1", iat: now, exp: now + 7200 } },
+    error: null,
+  }) } };
+  const result = await verifyAccessToken(supabase, "long-lived-token");
+  assert.equal(result.user, null);
+  assert.match(result.error.message, /lifetime/i);
 });
 
 test("liking a post does not recount all author likes across all posts", async t => {
@@ -116,7 +128,7 @@ test("upload signature generation signs folder and timestamp", async () => {
   assert.equal(result.body.data.apiKey, "test-api-key");
   assert.equal(result.body.data.cloudName, "test-cloud");
   assert.equal(result.body.data.folder, "share-ed/users/user-1/posts/covers");
-  assert.equal(result.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,webp");
+  assert.equal(result.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,webp,apng");
   assert.ok(typeof result.body.data.signature === "string");
   assert.ok(typeof result.body.data.timestamp === "number");
 });

@@ -17,11 +17,24 @@ function mock(t, object, key, implementation) {
   return object[key];
 }
 
-async function createRequest(t, aal = "aal2") {
+async function createRequest(t, aal = "aal2", sessionOverrides = {}) {
+  const now = Math.floor(Date.now() / 1000);
   mock(t, supabase.auth, "getClaims", async () => ({
-    data: { claims: { sub: "admin-1", aal } },
+    data: { claims: {
+      sub: "admin-1",
+      aal,
+      session_id: "22222222-2222-4222-8222-222222222222",
+      iat: now,
+      exp: now + 3600,
+    } },
     error: null,
   }));
+  mock(t, prisma, "$queryRaw", async () => [{
+    created_at_epoch: now - 60,
+    refreshed_at_epoch: now - 60,
+    not_after_epoch: null,
+    ...sessionOverrides,
+  }]);
   const app = express();
   app.use(express.json());
   app.use("/admin", adminRouter);
@@ -71,4 +84,15 @@ test("role update and security audit are committed together", async t => {
   assert.equal(data.target_user_id, "member-1");
   assert.equal(data.old_value, "MEMBER");
   assert.equal(data.new_value, "ADMIN");
+});
+
+test("admin sessions older than twelve hours require a new login", async t => {
+  mock(t, prisma.user, "findUnique", async () => ({ id: "admin-1", status: "ACTIVE", role: "ADMIN" }));
+  const now = Math.floor(Date.now() / 1000);
+  const request = await createRequest(t, "aal2", {
+    created_at_epoch: now - (12 * 60 * 60) - 1,
+  });
+  const response = await request("/admin/users/member-1/role", { role: "ADMIN" });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, "ADMIN_REAUTHENTICATION_REQUIRED");
 });
