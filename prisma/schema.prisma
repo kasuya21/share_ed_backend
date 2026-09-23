@@ -342,8 +342,9 @@ model PostTag {
 model PostMedia {
   id String @id @default(uuid()) @map("post_media_id")
 
-  media_url  String
-  media_type MediaType
+  media_url     String
+  media_type    MediaType
+  original_name String?
 
   post_id String
   post    Post   @relation(fields: [post_id], references: [id])

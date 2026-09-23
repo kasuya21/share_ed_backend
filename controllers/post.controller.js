@@ -136,6 +136,18 @@ function parseJsonValue(value) {
   try { return JSON.parse(value); } catch { return undefined; }
 }
 
+function normalizeOriginalFileName(value) {
+  if (typeof value !== "string") return null;
+  const baseName = value
+    .replaceAll("\\", "/")
+    .split("/")
+    .pop()
+    ?.replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim();
+  if (!baseName) return null;
+  return baseName.slice(0, 255);
+}
+
 export const POST_CARD_SELECT = {
   id: true,
   title: true,
@@ -203,6 +215,7 @@ async function handleMediaFiles(files, postId) {
       data: {
         media_url: result.secure_url,
         media_type: isPdf ? "PDF" : "IMAGE",
+        original_name: normalizeOriginalFileName(file.originalname),
         post_id: postId,
       },
     });
@@ -537,7 +550,11 @@ export const createPost = async (req, res) => {
             }, lookup);
             totalBytes += verified.bytes;
             sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
-            return { media_url: verified.media_url, media_type: verified.media_type };
+            return {
+              media_url: verified.media_url,
+              media_type: verified.media_type,
+              original_name: normalizeOriginalFileName(asset.original_name),
+            };
           });
         }
         if (totalBytes > 50 * 1024 * 1024) throw new DirectUploadValidationError("ขนาดไฟล์รวมเกิน 50 MB");
@@ -614,6 +631,7 @@ export const createPost = async (req, res) => {
         return {
           media_url: result.secure_url,
           media_type: isPdf ? "PDF" : "IMAGE",
+          original_name: normalizeOriginalFileName(file.originalname),
         };
       });
     })();
