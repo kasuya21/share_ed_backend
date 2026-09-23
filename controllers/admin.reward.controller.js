@@ -4,15 +4,15 @@ import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import crypto from "crypto";
 
-// Helper for Cloudinary Uploads
-const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
+// Keep reward assets in their original image format. Applying q_auto/f_auto while
+// uploading an APNG can create a single-frame derived asset that cannot be made
+// animated again by adding fl_apng to its delivery URL.
+const uploadToCloudinary = async (fileBuffer, folder) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       {
         folder,
-        transformation,
-        quality: "auto",
-        fetch_format: "auto"
+        resource_type: "image"
       },
       (error, result) => {
         if (error) reject(error);
