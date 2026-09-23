@@ -85,7 +85,11 @@ export const actionOnPost = async (req, res) => {
 
       await prisma.$transaction([
         prisma.report.deleteMany({ where: { post_id } }),
-        prisma.post.update({ where: { id: post_id }, data: { post_status: "ACTIVE" } })
+        prisma.post.update({ where: { id: post_id }, data: {
+          post_status: "ACTIVE",
+          deleted_by: null,
+          deleted_from_status: null,
+        } })
       ]);
 
       // 🔔 แจ้งเจ้าของโพสต์ว่าได้รับการคืนสถานะ
@@ -106,7 +110,11 @@ export const actionOnPost = async (req, res) => {
 
       const deletedPost = await prisma.post.update({
         where: { id: post_id },
-        data: { post_status: "DELETED" },
+        data: {
+          post_status: "DELETED",
+          deleted_by: "MODERATOR",
+          deleted_from_status: post.post_status,
+        },
       });
       const recoverableUntil = new Date(deletedPost.updated_at.getTime() + DELETED_POST_RECOVERY_MS);
 

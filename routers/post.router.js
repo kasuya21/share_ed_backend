@@ -9,6 +9,8 @@ import {
   updatePost,
   deletePost,
   getUserPosts,
+  getMyRecoverablePosts,
+  restoreMyPost,
   getTrendingPosts,
   getMostLikedPosts,
   getPlatformStats,
@@ -23,6 +25,7 @@ router.get("/", getAllPosts);
 router.get("/trending", getTrendingPosts);
 router.get("/most-liked", getMostLikedPosts);
 router.get("/user/my-posts", authMiddleware, getUserPosts);
+router.get("/user/recoverable", authMiddleware, getMyRecoverablePosts);
 const uploadSignatureRateLimit = rateLimit({
   limit: 15,
   windowMs: 60_000,
@@ -47,5 +50,6 @@ const postOperation = operation => (req, res, next) => {
 router.post("/", postOperation("post.create"), authMiddleware, uploadConcurrencyGuard, postFiles, createPost);
 router.put("/:id", postOperation("post.update"), authMiddleware, uploadConcurrencyGuard, postFiles, updatePost);
 router.delete("/:id", postOperation("post.delete"), authMiddleware, deletePost);
+router.post("/:id/restore", authMiddleware, restoreMyPost);
 
 export default router;
