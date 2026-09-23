@@ -60,7 +60,7 @@ export const updateAchievementProgress = async (userId, achievementType, current
       if (isCompleted) {
         await createNotification(
           userId,
-          "QUEST_COMPLETED",
+          "ACHIEVEMENT_COMPLETED",
           `Congratulations! You've completed the achievement: ${achievement.title}`
         );
       }
@@ -115,7 +115,7 @@ export const incrementAchievementProgress = async (userId, achievementType, amou
       if (isCompleted) {
         await createNotification(
           userId,
-          "QUEST_COMPLETED",
+          "ACHIEVEMENT_COMPLETED",
           `Congratulations! You've completed the achievement: ${achievement.title}`
         );
       }

@@ -46,15 +46,19 @@ enum NotificationTypeCode {
   LIKE
   NEW_COMMENT
   NEW_POST
+
   // Bookmark
   BOOKMARK_REMOVED
+
   // Post moderation
   POST_SUSPENDED
   POST_RESTORED
   POST_REMOVED
   POST_REPORTED
-  // Quest / Milestone
-  QUEST_COMPLETED
+
+  // Achievement / Milestone
+  ACHIEVEMENT_COMPLETED
+
   // Account management
   ACCOUNT_BANNED
   ACCOUNT_UNBANNED
@@ -103,8 +107,11 @@ model User {
   current_theme_id String?
   current_frame_id String?
 
-  current_theme RewardItem? @relation("UserTheme", fields: [current_theme_id], references: [id])
-  current_frame RewardItem? @relation("UserFrame", fields: [current_frame_id], references: [id])
+  // ลบ Theme -> User ยังอยู่
+  current_theme RewardItem? @relation("UserTheme", fields: [current_theme_id], references: [id], onDelete: SetNull)
+
+  // ลบ Frame -> User ยังอยู่
+  current_frame RewardItem? @relation("UserFrame", fields: [current_frame_id], references: [id], onDelete: SetNull)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -129,6 +136,7 @@ model User {
   @@index([username])
   @@index([email])
   @@index([role])
+
   @@map("users")
 }
 
@@ -141,16 +149,20 @@ model AdminSecurityAudit {
 
   actor_id       String
   target_user_id String
-  action         String
-  old_value      String?
-  new_value      String?
-  request_id     String?
-  ip_address     String?
+
+  action String
+
+  old_value String?
+  new_value String?
+
+  request_id String?
+  ip_address String?
 
   created_at DateTime @default(now())
 
   @@index([actor_id, created_at])
   @@index([target_user_id, created_at])
+
   @@map("admin_security_audits")
 }
 
@@ -165,8 +177,8 @@ model Post {
   summary String
   content String
 
-  post_status PostStatus @default(DRAFT)
-  deleted_by String?
+  post_status         PostStatus @default(DRAFT)
+  deleted_by          String?
   deleted_from_status PostStatus?
 
   education_level EducationLevel
@@ -177,10 +189,14 @@ model Post {
   bookmark_count Int @default(0)
 
   author_id String
-  author    User   @relation(fields: [author_id], references: [id])
+
+  // HARD DELETE USER -> Posts หายตาม
+  author User @relation(fields: [author_id], references: [id], onDelete: Cascade)
 
   category_id String?
-  category    Category? @relation(fields: [category_id], references: [id])
+
+  // ลบ Category -> Post ยังอยู่
+  category Category? @relation(fields: [category_id], references: [id], onDelete: SetNull)
 
   cover_image     String?
   idempotency_key String?
@@ -199,6 +215,7 @@ model Post {
   updated_at DateTime @default(now()) @updatedAt
 
   @@unique([author_id, idempotency_key])
+
   @@index([author_id])
   @@index([education_level])
   @@index([created_at])
@@ -206,24 +223,40 @@ model Post {
   @@index([view_count])
   @@index([post_status, created_at])
   @@index([post_status, view_count])
+
   @@map("posts")
 }
 
+//////////////////////////////////////////////////////
+// UPLOAD SESSION
+//////////////////////////////////////////////////////
+
 model UploadSession {
-  id              String              @id @default(uuid()) @map("upload_session_id")
-  user_id         String
-  user            User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  post_id         String?
-  post            Post?               @relation(fields: [post_id], references: [id], onDelete: SetNull)
-  status          UploadSessionStatus @default(PENDING)
+  id String @id @default(uuid()) @map("upload_session_id")
+
+  user_id String
+
+  // ลบ User -> UploadSession หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  post_id String?
+
+  // ลบ Post -> เก็บ Session ไว้ แต่ตัด relation
+  post Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+
+  status UploadSessionStatus @default(PENDING)
+
   requested_types Json
   verified_assets Json?
-  expires_at      DateTime
-  created_at      DateTime            @default(now())
-  updated_at      DateTime            @updatedAt
+
+  expires_at DateTime
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@index([user_id, status])
   @@index([status, expires_at])
+
   @@map("upload_sessions")
 }
 
@@ -239,14 +272,18 @@ model Comment {
   user_id String
   post_id String
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post @relation(fields: [post_id], references: [id])
+  // ลบ User -> Comment หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> Comment หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@index([post_id])
   @@index([user_id])
+
   @@map("comments")
 }
 
@@ -260,14 +297,19 @@ model Like {
   user_id String
   post_id String
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post @relation(fields: [post_id], references: [id])
+  // ลบ User -> Like หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> Like หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+
   @@index([post_id])
   @@index([user_id])
+
   @@map("likes")
 }
 
@@ -281,14 +323,19 @@ model Bookmark {
   user_id String
   post_id String
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post @relation(fields: [post_id], references: [id])
+  // ลบ User -> Bookmark หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> Bookmark หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+
   @@index([post_id])
   @@index([user_id])
+
   @@map("bookmarks")
 }
 
@@ -330,10 +377,14 @@ model PostTag {
   post_id String
   tag_id  String
 
-  post Post @relation(fields: [post_id], references: [id])
-  tag  Tag  @relation(fields: [tag_id], references: [id])
+  // ลบ Post -> relation หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  // ลบ Tag -> relation หาย
+  tag Tag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
 
   @@unique([post_id, tag_id])
+
   @@map("post_tags")
 }
 
@@ -349,7 +400,9 @@ model PostMedia {
   original_name String?
 
   post_id String
-  post    Post   @relation(fields: [post_id], references: [id])
+
+  // ลบ Post -> Media record หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   @@map("post_media")
 }
@@ -364,14 +417,19 @@ model Follow {
   follower_id  String
   following_id String
 
-  follower  User @relation("followers", fields: [follower_id], references: [id])
-  following User @relation("following", fields: [following_id], references: [id])
+  // ลบ follower -> relation หาย
+  follower User @relation("followers", fields: [follower_id], references: [id], onDelete: Cascade)
+
+  // ลบ following user -> relation หาย
+  following User @relation("following", fields: [following_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
   @@unique([follower_id, following_id])
+
   @@index([follower_id])
   @@index([following_id])
+
   @@map("follows")
 }
 
@@ -383,17 +441,24 @@ model Notification {
   id String @id @default(uuid()) @map("notification_id")
 
   user_id String
-  type    NotificationTypeCode @default(NEW_POST)
+
+  type NotificationTypeCode @default(NEW_POST)
 
   message String
 
   post_id  String?
   actor_id String?
-  is_read  Boolean @default(false)
 
-  user  User  @relation("NotificationRecipient", fields: [user_id], references: [id])
-  actor User? @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: SetNull)
-  post  Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
+  is_read Boolean @default(false)
+
+  // ลบเจ้าของ Notification -> Notification หาย
+  user User @relation("NotificationRecipient", fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Actor -> Notification ที่ Actor สร้างไว้หาย
+  actor User? @relation("NotificationActor", fields: [actor_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> Notification ของ Post นั้นหาย
+  post Post? @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
@@ -402,6 +467,7 @@ model Notification {
   @@index([actor_id])
   @@index([user_id, actor_id, post_id, type])
   @@index([is_read])
+
   @@map("notifications")
 }
 
@@ -421,7 +487,8 @@ model RewardItem {
 
   is_active Boolean @default(true)
 
-  unlocked_by  UserUnlockedItem[]
+  unlocked_by UserUnlockedItem[]
+
   achievements Achievement[]
 
   theme_users User[] @relation("UserTheme")
@@ -433,18 +500,26 @@ model RewardItem {
   @@map("reward_items")
 }
 
+//////////////////////////////////////////////////////
+// USER UNLOCKED ITEMS
+//////////////////////////////////////////////////////
+
 model UserUnlockedItem {
   id String @id @default(uuid())
 
   user_id String
   item_id String
 
-  user User       @relation(fields: [user_id], references: [id])
-  item RewardItem @relation(fields: [item_id], references: [id])
+  // ลบ User -> unlocked item หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ RewardItem -> unlocked relation หาย
+  item RewardItem @relation(fields: [item_id], references: [id], onDelete: Cascade)
 
   unlocked_at DateTime @default(now())
 
   @@unique([user_id, item_id])
+
   @@map("user_unlocked_items")
 }
 
@@ -462,7 +537,9 @@ model Achievement {
   achievement_type String
 
   reward_item_id String?
-  reward_item    RewardItem? @relation(fields: [reward_item_id], references: [id])
+
+  // ลบ RewardItem -> Achievement ยังอยู่
+  reward_item RewardItem? @relation(fields: [reward_item_id], references: [id], onDelete: SetNull)
 
   user_achievements UserAchievement[]
 
@@ -472,25 +549,34 @@ model Achievement {
   @@map("achievements")
 }
 
+//////////////////////////////////////////////////////
+// USER ACHIEVEMENTS
+//////////////////////////////////////////////////////
+
 model UserAchievement {
   id String @id @default(uuid())
 
   user_id        String
   achievement_id String
 
-  current_progress Int     @default(0)
-  is_completed     Boolean @default(false)
+  current_progress Int @default(0)
+
+  is_completed Boolean @default(false)
 
   completed_at DateTime?
   claimed_at   DateTime?
 
-  user        User        @relation(fields: [user_id], references: [id])
-  achievement Achievement @relation(fields: [achievement_id], references: [id])
+  // ลบ User -> Achievement progress หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Achievement -> Progress ของ Achievement นั้นหาย
+  achievement Achievement @relation(fields: [achievement_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@unique([user_id, achievement_id])
+
   @@map("user_achievements")
 }
 
@@ -504,13 +590,18 @@ model PostView {
   user_id String
   post_id String
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post @relation(fields: [post_id], references: [id])
+  // ลบ User -> View history หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> View history หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   viewed_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+
   @@index([viewed_at, post_id])
+
   @@map("post_views")
 }
 
@@ -526,11 +617,15 @@ model Report {
   user_id String
   post_id String
 
-  user User @relation(fields: [user_id], references: [id])
-  post Post @relation(fields: [post_id], references: [id])
+  // ลบ User -> Report ของ User หาย
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // ลบ Post -> Report ของ Post หาย
+  post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+
   @@map("reports")
 }

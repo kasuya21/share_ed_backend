@@ -4,7 +4,7 @@ import { v2 as cloudinary } from "cloudinary";
 import { isSupportedFile } from "../utils/upload-validation.js";
 
 const MB = 1024 * 1024;
-const IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/apng"]);
 const PDF_TYPE = "application/pdf";
 const VIDEO_TYPE = "video/mp4";
 const ALL_TYPES = new Set([...IMAGE_TYPES, PDF_TYPE, VIDEO_TYPE]);

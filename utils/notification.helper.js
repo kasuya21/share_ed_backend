@@ -12,7 +12,7 @@ export function labelFromType(type) {
     NEW_FOLLOWER: "มีคนติดตามคุณ",
     NEW_POST: "โพสต์ใหม่จากคนที่คุณติดตาม",
     BOOKMARK_REMOVED: "อัปเดตบุ๊กมาร์ก",
-    QUEST_COMPLETED: "ความสำเร็จใหม่",
+    ACHIEVEMENT_COMPLETED: "ความสำเร็จใหม่",
     POST_SUSPENDED: "โพสต์ถูกระงับ",
     POST_RESTORED: "โพสต์ถูกคืนสถานะ",
     POST_REMOVED: "โพสต์ถูกลบ",
