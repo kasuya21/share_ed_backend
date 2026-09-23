@@ -24,8 +24,7 @@ export const getReportedPosts = async (req, res) => {
           },
           {
             post_status: "DELETED",
-            updated_at: { gte: deletedAfter },
-            reports: { some: {} }
+            updated_at: { gte: deletedAfter }
           }
         ]
       },
@@ -43,8 +42,12 @@ export const getReportedPosts = async (req, res) => {
       }
     });
 
+    const consolePosts = posts.filter((post) =>
+      post.post_status === "DELETED" || post._count.reports >= 10
+    );
+
     return res.status(200).json({
-      posts: posts.map((post) => ({
+      posts: consolePosts.map((post) => ({
         ...post,
         recoverable_until: post.post_status === "DELETED"
           ? new Date(post.updated_at.getTime() + DELETED_POST_RECOVERY_MS)

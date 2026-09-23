@@ -70,23 +70,25 @@ export const reportPost = async (req, res) => {
       );
     }
 
-    const reportedPost = await prisma.post.findUnique({
-      where: { id: post_id },
-      include: {
-        reports: {
-          include: {
-            user: { select: { username: true, email: true } }
-          }
-        },
-        author: { select: { username: true, email: true } },
-        _count: { select: { reports: true } }
-      }
-    });
-    getIO()?.to("role:moderation").emit("report_created", {
-      postId: post_id,
-      reportCount,
-      post: reportedPost,
-    });
+    if (reportCount >= REPORT_THRESHOLD) {
+      const reportedPost = await prisma.post.findUnique({
+        where: { id: post_id },
+        include: {
+          reports: {
+            include: {
+              user: { select: { username: true, email: true } }
+            }
+          },
+          author: { select: { username: true, email: true } },
+          _count: { select: { reports: true } }
+        }
+      });
+      getIO()?.to("role:moderation").emit("report_created", {
+        postId: post_id,
+        reportCount,
+        post: reportedPost,
+      });
+    }
 
     return res.status(201).json({ message: "Post reported successfully", reportCount });
   } catch (error) {

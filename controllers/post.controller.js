@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { logError, logWarn } from "../utils/logger.js";
 import { validatePostFields, validateNewPost, POST_MEDIA_TYPES } from "../utils/post-validation.js";
 import { prisma } from "../configs/prisma.js";
+import { getIO } from "../configs/socket.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
@@ -991,9 +992,16 @@ export const deletePost = async (req, res) => {
     }
 
     // Soft Delete: เปลี่ยนสถานะเป็น DELETED
-    await prisma.post.update({
+    const deletedPost = await prisma.post.update({
       where: { id },
       data: { post_status: "DELETED" }
+    });
+    const deletedAt = deletedPost.updated_at instanceof Date ? deletedPost.updated_at : new Date();
+    const recoverableUntil = new Date(deletedAt.getTime() + 5 * 60 * 1000);
+    getIO()?.to("role:moderation").emit("report_reviewed", {
+      postId: id,
+      action: "SOFT_DELETE",
+      recoverableUntil,
     });
 
     platformStatsCache.clear();
