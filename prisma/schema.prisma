@@ -166,6 +166,8 @@ model Post {
   content String
 
   post_status PostStatus @default(DRAFT)
+  deleted_by String?
+  deleted_from_status PostStatus?
 
   education_level EducationLevel
 
