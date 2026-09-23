@@ -20,7 +20,36 @@ export const getNotifications = async (req, res) => {
       },
     });
 
-    const formatted = notifications.map(formatNotification);
+    // Notifications created before post_id was stored still contain the post
+    // title in their message. Resolve only unambiguous posts owned by the
+    // recipient so older suspension notices can open the correct post.
+    const missingPostIds = notifications.filter((notification) =>
+      notification.type === "POST_SUSPENDED" && !notification.post_id
+    );
+    const titleByNotification = new Map(missingPostIds.map((notification) => [
+      notification.id,
+      notification.message?.match(/โพสต์\s*[“"](.+?)[”"]/)?.[1] || null,
+    ]));
+    const titles = [...new Set([...titleByNotification.values()].filter(Boolean))];
+    const matchingPosts = titles.length > 0
+      ? await prisma.post.findMany({
+        where: { author_id: userId, title: { in: titles }, post_status: "UNACTIVED" },
+        select: { id: true, title: true },
+      })
+      : [];
+    const postsByTitle = new Map();
+    for (const post of matchingPosts) {
+      const matches = postsByTitle.get(post.title) || [];
+      matches.push(post.id);
+      postsByTitle.set(post.title, matches);
+    }
+    const formatted = notifications.map((notification) => {
+      const title = titleByNotification.get(notification.id);
+      const postIds = title ? postsByTitle.get(title) : null;
+      return formatNotification(postIds?.length === 1
+        ? { ...notification, post_id: postIds[0] }
+        : notification);
+    });
 
     res.status(200).json({ success: true, data: formatted });
   } catch (error) {
