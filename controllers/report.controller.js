@@ -49,7 +49,8 @@ export const reportPost = async (req, res) => {
       await createNotification(
         post.author_id,
         "POST_SUSPENDED",
-        `Your post "${post.title}" has been suspended due to ${reportCount} reports`
+        `โพสต์ “${post.title}” ของคุณถูกระงับอัตโนมัติ เนื่องจากได้รับรายงาน ${reportCount} ครั้ง`,
+        post.id
       );
 
       // 🔔 แจ้ง Moderator/Admin ทุกคน
@@ -62,7 +63,8 @@ export const reportPost = async (req, res) => {
           createNotification(
             m.id,
             "POST_REPORTED",
-            `Post "${post.title}" has been auto-suspended after ${reportCount} reports`
+            `โพสต์ “${post.title}” ถูกระงับอัตโนมัติหลังได้รับรายงาน ${reportCount} ครั้ง`,
+            post.id
           )
         )
       );
