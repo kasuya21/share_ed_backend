@@ -148,6 +148,51 @@ function normalizeOriginalFileName(value) {
   return baseName.slice(0, 255);
 }
 
+function cloudinaryRawPublicId(url) {
+  if (typeof url !== "string") return null;
+  const uploadMarker = "/raw/upload/";
+  const markerIndex = url.indexOf(uploadMarker);
+  if (markerIndex < 0) return null;
+  const path = url.slice(markerIndex + uploadMarker.length).replace(/^v\d+\//, "");
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+}
+
+async function restoreMissingPdfNames(post, req) {
+  const missingPdfs = post.media?.filter(
+    media => media.media_type === "PDF" && !media.original_name
+  ) || [];
+  await Promise.all(missingPdfs.map(async media => {
+    const publicId = cloudinaryRawPublicId(media.media_url);
+    if (!publicId) return;
+    try {
+      const asset = await cloudinary.api.resource(publicId, {
+        resource_type: "raw",
+        type: "upload",
+        timeout: 5000,
+      });
+      let originalName = normalizeOriginalFileName(asset.original_filename);
+      if (originalName && !originalName.toLowerCase().endsWith(".pdf")) {
+        originalName += ".pdf";
+      }
+      if (!originalName) return;
+      media.original_name = originalName;
+      await prisma.postMedia.update({
+        where: { id: media.id },
+        data: { original_name: originalName },
+      });
+    } catch (error) {
+      logWarn("post.pdf_original_name_restore_failed", error, req, {
+        postId: post.id,
+        mediaId: media.id,
+      });
+    }
+  }));
+}
+
 export const POST_CARD_SELECT = {
   id: true,
   title: true,
@@ -402,6 +447,8 @@ export const getPostById = async (req, res) => {
         message: "โพสต์นี้ถูกซ่อนหรือระงับการเข้าใช้งานเนื่องจากขัดต่อกฎของระบบ"
       });
     }
+
+    await restoreMissingPdfNames(post, req);
 
     res.status(200).json({
       success: true,
