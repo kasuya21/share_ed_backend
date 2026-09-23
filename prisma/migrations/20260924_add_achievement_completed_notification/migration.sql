@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "NotificationTypeCode" ADD VALUE 'ACHIEVEMENT_COMPLETED';
