@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "start": "node index.js",
+    "start": "prisma migrate deploy && node index.js",
     "dev": "node --watch index.js",
     "build": "prisma generate",
     "postinstall": "prisma generate",
