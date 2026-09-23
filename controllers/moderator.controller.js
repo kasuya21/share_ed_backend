@@ -1,6 +1,11 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import { getIO } from "../configs/socket.js";
+
+const emitReportReviewed = (postId, action) => {
+  getIO()?.to("role:moderation").emit("report_reviewed", { postId, action });
+};
 
 export const getReportedPosts = async (req, res) => {
   try {
@@ -65,6 +70,8 @@ export const actionOnPost = async (req, res) => {
         `Your post "${post.title}" has been reviewed and restored by a moderator`
       );
 
+      emitReportReviewed(post_id, action);
+
       return res.status(200).json({ message: "Post restored successfully" });
     } else if (action === "SOFT_DELETE") {
       await prisma.post.update({ where: { id: post_id }, data: { post_status: "DELETED" } });
@@ -76,6 +83,8 @@ export const actionOnPost = async (req, res) => {
         `Your post "${post.title}" has been removed after review by a moderator`
       );
 
+      emitReportReviewed(post_id, action);
+
       return res.status(200).json({ message: "Post soft deleted successfully" });
     } else if (action === "SUSPEND") {
       await prisma.post.update({ where: { id: post_id }, data: { post_status: "UNACTIVED" } });
@@ -86,6 +95,8 @@ export const actionOnPost = async (req, res) => {
         "POST_SUSPENDED",
         `Your post "${post.title}" has been suspended after review by a moderator`
       );
+
+      emitReportReviewed(post_id, action);
 
       return res.status(200).json({ message: "Post suspended successfully" });
     }

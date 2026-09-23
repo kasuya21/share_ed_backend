@@ -1,6 +1,7 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
+import { getIO } from "../configs/socket.js";
 
 const REPORT_THRESHOLD = 10;
 
@@ -38,7 +39,6 @@ export const reportPost = async (req, res) => {
     await prisma.report.create({ data: { user_id, post_id, reason } });
 
     const reportCount = post._count.reports + 1;
-
     if (reportCount >= REPORT_THRESHOLD && post.post_status !== "UNACTIVED") {
       await prisma.post.update({
         where: { id: post_id },
@@ -67,6 +67,24 @@ export const reportPost = async (req, res) => {
         )
       );
     }
+
+    const reportedPost = await prisma.post.findUnique({
+      where: { id: post_id },
+      include: {
+        reports: {
+          include: {
+            user: { select: { username: true, email: true } }
+          }
+        },
+        author: { select: { username: true, email: true } },
+        _count: { select: { reports: true } }
+      }
+    });
+    getIO()?.to("role:moderation").emit("report_created", {
+      postId: post_id,
+      reportCount,
+      post: reportedPost,
+    });
 
     return res.status(201).json({ message: "Post reported successfully", reportCount });
   } catch (error) {
