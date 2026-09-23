@@ -1,9 +1,9 @@
 const MB = 1024 * 1024;
 
 export const DIRECT_UPLOAD_POLICIES = Object.freeze({
-  cover: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp"], maxBytes: 2 * MB, folder: "covers" }),
-  media: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp"], maxBytes: 2 * MB, folder: "media" }),
-  content: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp"], maxBytes: 2 * MB, folder: "content" }),
+  cover: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp", "apng"], maxBytes: 2 * MB, folder: "covers" }),
+  media: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp", "apng"], maxBytes: 2 * MB, folder: "media" }),
+  content: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp", "apng"], maxBytes: 2 * MB, folder: "content" }),
   pdf: Object.freeze({ resourceType: "raw", formats: ["pdf"], maxBytes: 20 * MB, folder: "pdfs" }),
 });
 
