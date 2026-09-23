@@ -136,6 +136,63 @@ function parseJsonValue(value) {
   try { return JSON.parse(value); } catch { return undefined; }
 }
 
+function normalizeOriginalFileName(value) {
+  if (typeof value !== "string") return null;
+  const baseName = value
+    .replaceAll("\\", "/")
+    .split("/")
+    .pop()
+    ?.replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim();
+  if (!baseName) return null;
+  return baseName.slice(0, 255);
+}
+
+function cloudinaryRawPublicId(url) {
+  if (typeof url !== "string") return null;
+  const uploadMarker = "/raw/upload/";
+  const markerIndex = url.indexOf(uploadMarker);
+  if (markerIndex < 0) return null;
+  const path = url.slice(markerIndex + uploadMarker.length).replace(/^v\d+\//, "");
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+}
+
+async function restoreMissingPdfNames(post, req) {
+  const missingPdfs = post.media?.filter(
+    media => media.media_type === "PDF" && !media.original_name
+  ) || [];
+  await Promise.all(missingPdfs.map(async media => {
+    const publicId = cloudinaryRawPublicId(media.media_url);
+    if (!publicId) return;
+    try {
+      const asset = await cloudinary.api.resource(publicId, {
+        resource_type: "raw",
+        type: "upload",
+        timeout: 5000,
+      });
+      let originalName = normalizeOriginalFileName(asset.original_filename);
+      if (originalName && !originalName.toLowerCase().endsWith(".pdf")) {
+        originalName += ".pdf";
+      }
+      if (!originalName) return;
+      media.original_name = originalName;
+      await prisma.postMedia.update({
+        where: { id: media.id },
+        data: { original_name: originalName },
+      });
+    } catch (error) {
+      logWarn("post.pdf_original_name_restore_failed", error, req, {
+        postId: post.id,
+        mediaId: media.id,
+      });
+    }
+  }));
+}
+
 export const POST_CARD_SELECT = {
   id: true,
   title: true,
@@ -203,6 +260,7 @@ async function handleMediaFiles(files, postId) {
       data: {
         media_url: result.secure_url,
         media_type: isPdf ? "PDF" : "IMAGE",
+        original_name: normalizeOriginalFileName(file.originalname),
         post_id: postId,
       },
     });
@@ -390,6 +448,8 @@ export const getPostById = async (req, res) => {
       });
     }
 
+    await restoreMissingPdfNames(post, req);
+
     res.status(200).json({
       success: true,
       data: post
@@ -537,7 +597,11 @@ export const createPost = async (req, res) => {
             }, lookup);
             totalBytes += verified.bytes;
             sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
-            return { media_url: verified.media_url, media_type: verified.media_type };
+            return {
+              media_url: verified.media_url,
+              media_type: verified.media_type,
+              original_name: normalizeOriginalFileName(asset.original_name),
+            };
           });
         }
         if (totalBytes > 50 * 1024 * 1024) throw new DirectUploadValidationError("ขนาดไฟล์รวมเกิน 50 MB");
@@ -614,6 +678,7 @@ export const createPost = async (req, res) => {
         return {
           media_url: result.secure_url,
           media_type: isPdf ? "PDF" : "IMAGE",
+          original_name: normalizeOriginalFileName(file.originalname),
         };
       });
     })();
