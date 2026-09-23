@@ -9,9 +9,13 @@ export function socketAuth(supabase, prisma) {
       if (typeof token !== "string" || !token || token.length > 8192) throw new Error("Missing or invalid socket token");
       const { user: tokenUser, error } = await verifyAccessToken(supabase, token);
       if (error || !tokenUser) throw new Error("Socket token verification failed");
-      const user = await prisma.user.findUnique({ where: { id: tokenUser.id }, select: { status: true } });
+      const user = await prisma.user.findUnique({
+        where: { id: tokenUser.id },
+        select: { status: true, role: true },
+      });
       if (!user || user.status !== "ACTIVE") throw new Error("Socket account missing or inactive");
       socket.data.userId = tokenUser.id;
+      socket.data.role = user.role;
       next();
     } catch (error) {
       logWarn("socket.authentication_failed", error, {
@@ -25,6 +29,9 @@ export function socketAuth(supabase, prisma) {
 
 export function joinOwnRoom(socket) {
   socket.join(`user:${socket.data.userId}`);
+  if (["ADMIN", "MODERATOR"].includes(socket.data.role)) {
+    socket.join("role:moderation");
+  }
   // Keep compatibility with old clients, but never trust their room/user ID.
   socket.on("join", () => socket.join(`user:${socket.data.userId}`));
 }
