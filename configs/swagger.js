@@ -2887,7 +2887,7 @@ export const swaggerDocument = {
             "description": "Achievement deleted successfully."
           },
           "400": {
-            "description": "Cannot delete achievement, users have progress on it."
+            "description": "Bad request."
           },
           "404": {
             "description": "Achievement not found."
