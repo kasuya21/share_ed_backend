@@ -52,7 +52,6 @@ enum NotificationTypeCode {
 
   // Post moderation
   POST_SUSPENDED
-  POST_RESTORED
   POST_REMOVED
   POST_REPORTED
 
@@ -67,7 +66,6 @@ enum NotificationTypeCode {
 enum PostStatus {
   DRAFT
   ACTIVE
-  DELETED
   UNACTIVED
 }
 
@@ -136,7 +134,6 @@ model User {
   @@index([username])
   @@index([email])
   @@index([role])
-
   @@map("users")
 }
 
@@ -162,7 +159,6 @@ model AdminSecurityAudit {
 
   @@index([actor_id, created_at])
   @@index([target_user_id, created_at])
-
   @@map("admin_security_audits")
 }
 
@@ -177,9 +173,7 @@ model Post {
   summary String
   content String
 
-  post_status         PostStatus @default(DRAFT)
-  deleted_by          String?
-  deleted_from_status PostStatus?
+  post_status PostStatus @default(DRAFT)
 
   education_level EducationLevel
 
@@ -215,7 +209,6 @@ model Post {
   updated_at DateTime @default(now()) @updatedAt
 
   @@unique([author_id, idempotency_key])
-
   @@index([author_id])
   @@index([education_level])
   @@index([created_at])
@@ -223,7 +216,6 @@ model Post {
   @@index([view_count])
   @@index([post_status, created_at])
   @@index([post_status, view_count])
-
   @@map("posts")
 }
 
@@ -256,7 +248,6 @@ model UploadSession {
 
   @@index([user_id, status])
   @@index([status, expires_at])
-
   @@map("upload_sessions")
 }
 
@@ -283,7 +274,6 @@ model Comment {
 
   @@index([post_id])
   @@index([user_id])
-
   @@map("comments")
 }
 
@@ -306,10 +296,8 @@ model Like {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
-
   @@index([post_id])
   @@index([user_id])
-
   @@map("likes")
 }
 
@@ -332,10 +320,8 @@ model Bookmark {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
-
   @@index([post_id])
   @@index([user_id])
-
   @@map("bookmarks")
 }
 
@@ -384,7 +370,6 @@ model PostTag {
   tag Tag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
 
   @@unique([post_id, tag_id])
-
   @@map("post_tags")
 }
 
@@ -426,10 +411,8 @@ model Follow {
   created_at DateTime @default(now())
 
   @@unique([follower_id, following_id])
-
   @@index([follower_id])
   @@index([following_id])
-
   @@map("follows")
 }
 
@@ -467,7 +450,6 @@ model Notification {
   @@index([actor_id])
   @@index([user_id, actor_id, post_id, type])
   @@index([is_read])
-
   @@map("notifications")
 }
 
@@ -519,7 +501,6 @@ model UserUnlockedItem {
   unlocked_at DateTime @default(now())
 
   @@unique([user_id, item_id])
-
   @@map("user_unlocked_items")
 }
 
@@ -576,7 +557,6 @@ model UserAchievement {
   updated_at DateTime @updatedAt
 
   @@unique([user_id, achievement_id])
-
   @@map("user_achievements")
 }
 
@@ -599,9 +579,7 @@ model PostView {
   viewed_at DateTime @default(now())
 
   @@unique([user_id, post_id])
-
   @@index([viewed_at, post_id])
-
   @@map("post_views")
 }
 
@@ -626,6 +604,5 @@ model Report {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
-
   @@map("reports")
 }

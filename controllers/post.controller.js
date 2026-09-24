@@ -9,6 +9,7 @@ import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
 import { MemoryCache } from "../utils/cache.helper.js";
+import { deletePostPermanently } from "../utils/post-deletion.js";
 import {
   DIRECT_UPLOAD_POLICIES,
   DirectUploadValidationError,
@@ -431,13 +432,6 @@ export const getPostById = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "คุณไม่มีสิทธิ์เข้าถึงโพสต์ฉบับร่างนี้"
-      });
-    }
-
-    if (post.post_status === "DELETED" && post.author_id !== userId && !["MODERATOR", "ADMIN"].includes(userRole)) {
-      return res.status(404).json({
-        success: false,
-        message: "ไม่พบโพสต์ (โพสต์ถูกลบแล้ว)"
       });
     }
 
@@ -1039,7 +1033,7 @@ export const updatePost = async (req, res) => {
 
 // ============================================================
 // DELETE /api/v1/posts/:id
-// ลบโพสต์ (Soft Delete: เปลี่ยนสถานะเป็น DELETED)
+// ลบโพสต์และไฟล์ที่เกี่ยวข้องอย่างถาวร
 // ============================================================
 export const deletePost = async (req, res) => {
   try {
@@ -1055,26 +1049,8 @@ export const deletePost = async (req, res) => {
     if (post.author_id !== user_id) {
       return res.status(403).json({ success: false, message: "คุณไม่มีสิทธิ์ลบโพสต์ของผู้อื่น" });
     }
-    if (post.post_status === "DELETED") {
-      return res.status(409).json({ success: false, message: "โพสต์นี้ถูกลบไปแล้ว" });
-    }
-
-    // Soft Delete: เปลี่ยนสถานะเป็น DELETED
-    const deletedPost = await prisma.post.update({
-      where: { id },
-      data: {
-        post_status: "DELETED",
-        deleted_by: "OWNER",
-        deleted_from_status: post.post_status,
-      }
-    });
-    const deletedAt = deletedPost.updated_at instanceof Date ? deletedPost.updated_at : new Date();
-    const recoverableUntil = new Date(deletedAt.getTime() + 5 * 60 * 1000);
-    getIO()?.to("role:moderation").emit("report_reviewed", {
-      postId: id,
-      action: "SOFT_DELETE",
-      recoverableUntil,
-    });
+    await deletePostPermanently(id);
+    getIO()?.to("role:moderation").emit("report_reviewed", { postId: id, action: "DELETE" });
 
     platformStatsCache.clear();
     trendingPostsCache.clear();
@@ -1087,72 +1063,6 @@ export const deletePost = async (req, res) => {
   }
 };
 
-export const getMyRecoverablePosts = async (req, res) => {
-  try {
-    const deletedAfter = new Date(Date.now() - 5 * 60 * 1000);
-    const posts = await prisma.post.findMany({
-      where: {
-        author_id: req.user.id,
-        post_status: "DELETED",
-        deleted_by: "OWNER",
-        updated_at: { gt: deletedAfter },
-      },
-      orderBy: { updated_at: "desc" },
-      select: { id: true, title: true, cover_image: true, updated_at: true },
-    });
-    return res.status(200).json({
-      success: true,
-      data: posts.map((post) => ({
-        ...post,
-        recoverable_until: new Date(post.updated_at.getTime() + 5 * 60 * 1000),
-      })),
-    });
-  } catch (error) {
-    logError("controllers.getMyRecoverablePosts", error, req);
-    return res.status(500).json({ success: false, message: "ไม่สามารถโหลดโพสต์ที่กู้คืนได้" });
-  }
-};
-
-export const restoreMyPost = async (req, res) => {
-  try {
-    const post = await prisma.post.findFirst({
-      where: { id: req.params.id, author_id: req.user.id },
-      select: { id: true, post_status: true, deleted_by: true, deleted_from_status: true },
-    });
-    if (!post) return res.status(404).json({ success: false, message: "ไม่พบโพสต์ของคุณ" });
-    if (post.post_status !== "DELETED" || post.deleted_by !== "OWNER") {
-      return res.status(403).json({ success: false, message: "โพสต์นี้ไม่สามารถกู้คืนด้วยบัญชีของคุณได้" });
-    }
-
-    const restored = await prisma.post.updateMany({
-      where: {
-        id: post.id,
-        author_id: req.user.id,
-        post_status: "DELETED",
-        deleted_by: "OWNER",
-        updated_at: { gt: new Date(Date.now() - 5 * 60 * 1000) },
-      },
-      data: {
-        post_status: post.deleted_from_status || "ACTIVE",
-        deleted_by: null,
-        deleted_from_status: null,
-      },
-    });
-    if (restored.count === 0) {
-      return res.status(410).json({ success: false, message: "หมดเวลากู้คืนโพสต์แล้ว (ภายใน 5 นาทีหลังลบ)" });
-    }
-
-    platformStatsCache.clear();
-    trendingPostsCache.clear();
-    mostLikedPostsCache.clear();
-    getIO()?.to("role:moderation").emit("report_reviewed", { postId: post.id, action: "RESTORE" });
-    return res.status(200).json({ success: true, message: "กู้คืนโพสต์สำเร็จ", postId: post.id });
-  } catch (error) {
-    logError("controllers.restoreMyPost", error, req);
-    return res.status(500).json({ success: false, message: "ไม่สามารถกู้คืนโพสต์ได้" });
-  }
-};
-
 // ============================================================
 // GET /api/v1/posts/user/my-posts
 // ดึงโพสต์ทั้งหมดที่เป็นของตัวเอง (รวม Draft)
@@ -1162,10 +1072,7 @@ export const getUserPosts = async (req, res) => {
     const user_id = req.user.id;
 
     const posts = await prisma.post.findMany({
-      where: {
-        author_id: user_id,
-        post_status: { not: "DELETED" } // ไม่แสดงโพสต์ที่โดนลบ
-      },
+      where: { author_id: user_id },
       include: {
         category: true,
         media: true,

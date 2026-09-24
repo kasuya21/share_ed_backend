@@ -120,64 +120,29 @@ test("a moderation decision broadcasts an immediate badge update", async (t) => 
   assert.deepEqual(moderationEvent.payload, { postId: "post-1", action: "SUSPEND" });
 });
 
-test("a deleted post cannot be restored after the five minute recovery window", async (t) => {
-  initIO(null);
-  const transaction = replace(t, prisma, "$transaction", async () => []);
-  replace(t, prisma.post, "findUnique", async () => ({
-    id: "post-expired",
-    author_id: "owner-1",
-    title: "Expired post",
-    post_status: "DELETED",
-    updated_at: new Date(Date.now() - 5 * 60 * 1000 - 1),
-  }));
-
-  const { response, res } = responseRecorder();
-  await actionOnPost({
-    params: { post_id: "post-expired" },
-    body: { action: "RESTORE" },
-  }, res);
-
-  assert.equal(response.status, 410);
-  assert.match(response.body.message, /5 นาที/);
-  assert.equal(transaction.mock.callCount(), 0);
-});
-
-test("a deleted post can be restored during the five minute recovery window", async (t) => {
+test("a moderator can approve a reported post and clear its reports", async (t) => {
   const events = socketRecorder(t);
   replace(t, prisma.post, "findUnique", async () => ({
-    id: "post-recoverable",
+    id: "post-reported",
     author_id: "owner-1",
-    title: "Recoverable post",
-    post_status: "DELETED",
-    updated_at: new Date(Date.now() - 4 * 60 * 1000),
+    title: "Reported post",
+    post_status: "UNACTIVED",
   }));
   replace(t, prisma.report, "deleteMany", async () => ({ count: 1 }));
   const update = replace(t, prisma.post, "update", async () => ({
-    id: "post-recoverable",
+    id: "post-reported",
     post_status: "ACTIVE",
   }));
   replace(t, prisma, "$transaction", async (operations) => Promise.all(operations));
-  replace(t, prisma.notification, "create", async ({ data }) => ({
-    id: "notification-restored",
-    ...data,
-    created_at: new Date("2026-09-23T10:00:00.000Z"),
-  }));
 
   const { response, res } = responseRecorder();
   await actionOnPost({
-    params: { post_id: "post-recoverable" },
-    body: { action: "RESTORE" },
+    params: { post_id: "post-reported" },
+    body: { action: "APPROVE" },
   }, res);
 
   assert.equal(response.status, 200);
-  assert.deepEqual(update.mock.calls[0].arguments[0].data, {
-    post_status: "ACTIVE",
-    deleted_by: null,
-    deleted_from_status: null,
-  });
-  const restoredNotification = events.find((entry) => entry.event === "new_notification");
-  assert.equal(restoredNotification.payload.postId, "post-recoverable");
-  assert.match(restoredNotification.payload.message, /Recoverable post/);
+  assert.deepEqual(update.mock.calls[0].arguments[0].data, { post_status: "ACTIVE" });
   const reviewEvent = events.find((entry) => entry.event === "report_reviewed");
-  assert.equal(reviewEvent.payload.action, "RESTORE");
+  assert.deepEqual(reviewEvent.payload, { postId: "post-reported", action: "APPROVE" });
 });

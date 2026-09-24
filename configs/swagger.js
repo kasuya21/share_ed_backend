@@ -144,7 +144,6 @@ export const swaggerDocument = {
             "enum": [
               "DRAFT",
               "ACTIVE",
-              "DELETED",
               "UNACTIVED"
             ]
           },
@@ -1106,7 +1105,7 @@ export const swaggerDocument = {
                     "enum": [
                       "DRAFT",
                       "ACTIVE",
-                      "DELETED"
+                      "UNACTIVED"
                     ]
                   },
                   "category_id": {
@@ -1162,8 +1161,8 @@ export const swaggerDocument = {
         }
       },
       "delete": {
-        "summary": "Soft Delete Post",
-        "description": "Soft deletes a post by setting its status to ARCHIVED.",
+        "summary": "Permanently Delete Post",
+        "description": "Permanently deletes the post and its associated uploaded assets. This action cannot be undone.",
         "tags": [
           "📝 Posts"
         ],
@@ -1185,7 +1184,7 @@ export const swaggerDocument = {
         ],
         "responses": {
           "200": {
-            "description": "Post archived successfully."
+            "description": "Post permanently deleted successfully."
           },
           "401": {
             "description": "Unauthorized."
@@ -2029,7 +2028,7 @@ export const swaggerDocument = {
     "/moderator/posts/{id}/action": {
       "post": {
         "summary": "Perform Action on Reported Post",
-        "description": "Perform moderation actions: RESTORE (re-activates post) or SOFT_DELETE (archives post).",
+        "description": "Perform moderation actions: APPROVE, DELETE (permanent), or SUSPEND.",
         "tags": [
           "🛡️ Moderator"
         ],
@@ -2062,8 +2061,9 @@ export const swaggerDocument = {
                   "action": {
                     "type": "string",
                     "enum": [
-                      "RESTORE",
-                      "SOFT_DELETE"
+                      "APPROVE",
+                      "DELETE",
+                      "SUSPEND"
                     ]
                   }
                 }
