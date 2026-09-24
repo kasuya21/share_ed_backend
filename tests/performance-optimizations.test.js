@@ -15,6 +15,7 @@ const {
 const { verifyAccessToken } = await import("../utils/auth-token.js");
 const { equipItem } = await import("../controllers/user.controller.js");
 const { verifyUser } = await import("../controllers/auth.controller.js");
+const { isAnimatedPng, rewardUploadOptions } = await import("../controllers/admin.reward.controller.js");
 
 function replace(t, object, key, implementation) {
   const original = object[key];
@@ -180,6 +181,23 @@ test("equipping a frame returns the database-backed equipped state", async t => 
   assert.deepEqual(result.body.data, equippedState);
   assert.deepEqual(update.mock.calls[0].arguments[0].where, { id: "user-1" });
   assert.deepEqual(update.mock.calls[0].arguments[0].data, { current_frame_id: "frame-1" });
+});
+
+test("animated reward PNGs use raw Cloudinary storage to preserve every frame", () => {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const animationChunk = Buffer.concat([
+    Buffer.from([0, 0, 0, 8]),
+    Buffer.from("acTL"),
+    Buffer.alloc(8),
+    Buffer.alloc(4),
+  ]);
+  const animatedPng = Buffer.concat([signature, animationChunk]);
+
+  assert.equal(isAnimatedPng(animatedPng), true);
+  const options = rewardUploadOptions(animatedPng, "share-ed/rewards");
+  assert.equal(options.folder, "share-ed/rewards");
+  assert.equal(options.resource_type, "raw");
+  assert.match(options.public_id, /^[0-9a-f-]+\.png$/);
 });
 
 test("upload signature generation signs folder and timestamp", async () => {
