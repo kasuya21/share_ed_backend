@@ -97,12 +97,26 @@ test("admin sessions older than twelve hours require a new login", async t => {
   assert.equal((await response.json()).code, "ADMIN_REAUTHENTICATION_REQUIRED");
 });
 
-test("deleteAchievement cascades user progress deletion in transaction", async t => {
-  const existing = { id: "ach-1", title: "Test Achievement" };
+test("deleteAchievement cascades user progress and associated reward frame deletion in transaction", async t => {
+  const existing = {
+    id: "ach-1",
+    title: "Test Achievement",
+    reward_item_id: "reward-1",
+    reward_item: {
+      id: "reward-1",
+      item_name: "Diamond Frame",
+      item_type: "FRAME",
+      image_url: "https://res.cloudinary.com/test/image/upload/v123/frame.png",
+    },
+  };
   mock(t, prisma.achievement, "findUnique", async () => existing);
+  mock(t, prisma.achievement, "count", async () => 0); // No other achievements using this reward
 
   let deletedUserAchievementsWhere = null;
   let deletedAchievementWhere = null;
+  let deletedRewardWhere = null;
+  let deletedUnlockedItemsWhere = null;
+  let updatedUsersFrame = null;
 
   mock(t, prisma, "$transaction", async (operations) => Promise.all(operations));
   mock(t, prisma.userAchievement, "deleteMany", async ({ where }) => {
@@ -112,6 +126,18 @@ test("deleteAchievement cascades user progress deletion in transaction", async t
   mock(t, prisma.achievement, "delete", async ({ where }) => {
     deletedAchievementWhere = where;
     return existing;
+  });
+  mock(t, prisma.user, "updateMany", async ({ where, data }) => {
+    if (where.current_frame_id) updatedUsersFrame = { where, data };
+    return { count: 1 };
+  });
+  mock(t, prisma.userUnlockedItem, "deleteMany", async ({ where }) => {
+    deletedUnlockedItemsWhere = where;
+    return { count: 2 };
+  });
+  mock(t, prisma.rewardItem, "delete", async ({ where }) => {
+    deletedRewardWhere = where;
+    return existing.reward_item;
   });
 
   const req = { params: { id: "ach-1" } };
@@ -129,4 +155,10 @@ test("deleteAchievement cascades user progress deletion in transaction", async t
   assert.equal(res.body.success, true);
   assert.deepEqual(deletedUserAchievementsWhere, { achievement_id: "ach-1" });
   assert.deepEqual(deletedAchievementWhere, { id: "ach-1" });
+  assert.deepEqual(deletedRewardWhere, { id: "reward-1" });
+  assert.deepEqual(deletedUnlockedItemsWhere, { item_id: "reward-1" });
+  assert.deepEqual(updatedUsersFrame, {
+    where: { current_frame_id: "reward-1" },
+    data: { current_frame_id: null },
+  });
 });

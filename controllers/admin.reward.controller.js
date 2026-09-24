@@ -210,10 +210,28 @@ export const deleteReward = async (req, res) => {
       });
     }
 
-    // Can delete safely
-    await prisma.rewardItem.delete({
-      where: { id }
-    });
+    // Clean up user equipment, unlocked items, and delete reward
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { current_frame_id: id },
+        data: { current_frame_id: null },
+      }),
+      prisma.user.updateMany({
+        where: { current_theme_id: id },
+        data: { current_theme_id: null },
+      }),
+      prisma.userUnlockedItem.deleteMany({
+        where: { item_id: id },
+      }),
+      prisma.rewardItem.delete({
+        where: { id },
+      }),
+    ]);
+
+    if (reward.image_url) {
+      const resourceType = reward.image_url.includes("/raw/upload/") ? "raw" : "image";
+      await deleteFromCloudinary(reward.image_url, resourceType);
+    }
 
     res.status(200).json({ success: true, message: "ลบของรางวัลเรียบร้อยแล้ว" });
   } catch (error) {
