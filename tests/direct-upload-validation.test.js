@@ -22,7 +22,7 @@ function imageAsset(overrides = {}) {
 test("direct upload parameters isolate files by user and restrict formats", () => {
   assert.deepEqual(directUploadParams("cover", "user-1", 123), {
     return_delete_token: true,
-    allowed_formats: "jpg,jpeg,png,webp",
+    allowed_formats: "jpg,jpeg,png,webp,apng",
     folder: "share-ed/users/user-1/posts/covers",
     timestamp: 123,
   });

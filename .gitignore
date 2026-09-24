@@ -15,4 +15,5 @@ tests/*
 !tests/direct-upload-validation.test.js
 !tests/post-validation.test.js
 !tests/admin-security.test.js
+!tests/report-realtime.test.js
 scripts

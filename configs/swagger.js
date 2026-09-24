@@ -109,6 +109,10 @@ export const swaggerDocument = {
             "type": "string",
             "nullable": true
           },
+          "current_frame": {
+            "allOf": [{ "$ref": "#/components/schemas/RewardItem" }],
+            "nullable": true
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -2648,13 +2652,18 @@ export const swaggerDocument = {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/User"
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "message": { "type": "string" },
+                    "data": { "$ref": "#/components/schemas/User" }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid request or item not owned."
+            "description": "Invalid request, inactive item, wrong item type, or item not owned."
           },
           "401": {
             "description": "Unauthorized."
