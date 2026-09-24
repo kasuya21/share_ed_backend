@@ -132,7 +132,6 @@
             "enum": [
               "DRAFT",
               "ACTIVE",
-              "DELETED",
               "UNACTIVED"
             ]
           },
@@ -824,7 +823,7 @@
                     "enum": [
                       "DRAFT",
                       "ACTIVE",
-                      "DELETED"
+                      "UNACTIVED"
                     ]
                   }
                 }
@@ -855,8 +854,8 @@
         }
       },
       "delete": {
-        "summary": "Soft Delete Post",
-        "description": "Soft deletes a post by setting its status to ARCHIVED.",
+        "summary": "Permanently Delete Post",
+        "description": "Permanently deletes the post and its associated uploaded assets. This action cannot be undone.",
         "tags": [
           "📝 Posts"
         ],
@@ -878,7 +877,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Post archived successfully."
+            "description": "Post permanently deleted successfully."
           },
           "401": {
             "description": "Unauthorized."
@@ -1722,7 +1721,7 @@
     "/moderator/posts/{id}/action": {
       "post": {
         "summary": "Perform Action on Reported Post",
-        "description": "Perform moderation actions: RESTORE (re-activates post) or SOFT_DELETE (archives post).",
+        "description": "Perform moderation actions: APPROVE, DELETE (permanent), or SUSPEND.",
         "tags": [
           "🛡️ Moderator"
         ],
@@ -1755,8 +1754,9 @@
                   "action": {
                     "type": "string",
                     "enum": [
-                      "RESTORE",
-                      "SOFT_DELETE"
+                      "APPROVE",
+                      "DELETE",
+                      "SUSPEND"
                     ]
                   }
                 }

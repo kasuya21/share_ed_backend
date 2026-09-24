@@ -14,7 +14,6 @@ export function labelFromType(type) {
     BOOKMARK_REMOVED: "อัปเดตบุ๊กมาร์ก",
     ACHIEVEMENT_COMPLETED: "ความสำเร็จใหม่",
     POST_SUSPENDED: "โพสต์ถูกระงับ",
-    POST_RESTORED: "โพสต์ถูกคืนสถานะ",
     POST_REMOVED: "โพสต์ถูกลบ",
     POST_REPORTED: "มีรายงานโพสต์",
     ACCOUNT_BANNED: "บัญชีถูกระงับ",

@@ -5,7 +5,7 @@
 - Authenticated and active local account: post detail, social mutations, personal notifications/bookmarks/reports/inventory, achievements and profile changes. /auth/me alone permits provisioning a missing local account.
 - Owner only: post edits/deletes, comment edits/deletes, profile updates, reward equipment and claims. Media removal is scoped to the owned post ID.
 - ADMIN only: account roles/status, categories, rewards and achievement administration. MODERATOR or ADMIN: moderation routes.
-- Post detail keeps existing owner access to hidden posts and database-authorized moderator/admin access to moderated/deleted posts; other users cannot read drafts.
+- Post detail keeps existing owner access to drafts and database-authorized moderator/admin access to suspended posts; other users cannot read drafts.
 
 ## Changes
 - Social routes now require an ACTIVE post: comment listing/creation, like status/toggling, bookmark toggling and reporting. Invalid identifiers return 400; inaccessible/missing posts return the same 404.

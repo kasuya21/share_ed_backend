@@ -2,8 +2,7 @@ import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { getIO } from "../configs/socket.js";
-
-const DELETED_POST_RECOVERY_MS = 5 * 60 * 1000;
+import { deletePostPermanently } from "../utils/post-deletion.js";
 
 const emitReportReviewed = (postId, action, extra = {}) => {
   getIO()?.to("role:moderation").emit("report_reviewed", { postId, action, ...extra });
@@ -11,7 +10,6 @@ const emitReportReviewed = (postId, action, extra = {}) => {
 
 export const getReportedPosts = async (req, res) => {
   try {
-    const deletedAfter = new Date(Date.now() - DELETED_POST_RECOVERY_MS);
     const posts = await prisma.post.findMany({
       where: {
         OR: [
@@ -21,10 +19,6 @@ export const getReportedPosts = async (req, res) => {
             reports: {
               some: {}
             }
-          },
-          {
-            post_status: "DELETED",
-            updated_at: { gte: deletedAfter }
           }
         ]
       },
@@ -42,18 +36,7 @@ export const getReportedPosts = async (req, res) => {
       }
     });
 
-    const consolePosts = posts.filter((post) =>
-      post.post_status === "DELETED" || post._count.reports >= 10
-    );
-
-    return res.status(200).json({
-      posts: consolePosts.map((post) => ({
-        ...post,
-        recoverable_until: post.post_status === "DELETED"
-          ? new Date(post.updated_at.getTime() + DELETED_POST_RECOVERY_MS)
-          : null,
-      })),
-    });
+    return res.status(200).json({ posts: posts.filter((post) => post._count.reports >= 10) });
   } catch (error) {
     logError("controllers.getReportedPosts", error, req);
     return res.status(500).json({ message: "Internal server error" });
@@ -65,8 +48,8 @@ export const actionOnPost = async (req, res) => {
     const { post_id } = req.params;
     const { action } = req.body;
 
-    if (!action || !["RESTORE", "SOFT_DELETE", "SUSPEND"].includes(action)) {
-      return res.status(400).json({ message: "Invalid action. Use RESTORE, SOFT_DELETE, or SUSPEND" });
+    if (!action || !["APPROVE", "DELETE", "SUSPEND"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action. Use APPROVE, DELETE, or SUSPEND" });
     }
 
     const post = await prisma.post.findUnique({ where: { id: post_id } });
@@ -75,63 +58,23 @@ export const actionOnPost = async (req, res) => {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    if (action === "RESTORE") {
-      if (
-        post.post_status === "DELETED"
-        && Date.now() - post.updated_at.getTime() > DELETED_POST_RECOVERY_MS
-      ) {
-        return res.status(410).json({ message: "หมดเวลาเรียกคืนโพสต์แล้ว (กำหนดภายใน 5 นาที)" });
-      }
-
+    if (action === "APPROVE") {
       await prisma.$transaction([
         prisma.report.deleteMany({ where: { post_id } }),
-        prisma.post.update({ where: { id: post_id }, data: {
-          post_status: "ACTIVE",
-          deleted_by: null,
-          deleted_from_status: null,
-        } })
+        prisma.post.update({ where: { id: post_id }, data: { post_status: "ACTIVE" } })
       ]);
-
-      // 🔔 แจ้งเจ้าของโพสต์ว่าได้รับการคืนสถานะ
-      await createNotification(
-        post.author_id,
-        "POST_RESTORED",
-        `โพสต์ “${post.title}” ของคุณได้รับการคืนสถานะและเผยแพร่อีกครั้งแล้ว`,
-        post.id
-      );
-
       emitReportReviewed(post_id, action);
-
-      return res.status(200).json({ message: "Post restored successfully" });
-    } else if (action === "SOFT_DELETE") {
-      if (post.post_status === "DELETED") {
-        return res.status(409).json({ message: "โพสต์นี้ถูกลบไปแล้ว" });
-      }
-
-      const deletedPost = await prisma.post.update({
-        where: { id: post_id },
-        data: {
-          post_status: "DELETED",
-          deleted_by: "MODERATOR",
-          deleted_from_status: post.post_status,
-        },
-      });
-      const recoverableUntil = new Date(deletedPost.updated_at.getTime() + DELETED_POST_RECOVERY_MS);
-
-      // 🔔 แจ้งเจ้าของโพสต์ว่าถูกลบออก
+      return res.status(200).json({ message: "Post approved successfully" });
+    } else if (action === "DELETE") {
+      await deletePostPermanently(post_id);
       await createNotification(
         post.author_id,
         "POST_REMOVED",
         `โพสต์ “${post.title}” ของคุณถูกลบหลังการตรวจสอบรายงาน`,
-        post.id
+        null
       );
-
-      emitReportReviewed(post_id, action, { recoverableUntil });
-
-      return res.status(200).json({
-        message: "Post soft deleted successfully",
-        recoverableUntil,
-      });
+      emitReportReviewed(post_id, action);
+      return res.status(200).json({ message: "Post permanently deleted successfully" });
     } else if (action === "SUSPEND") {
       await prisma.post.update({ where: { id: post_id }, data: { post_status: "UNACTIVED" } });
 
