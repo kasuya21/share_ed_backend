@@ -186,18 +186,15 @@ export const deleteAchievement = async (req, res) => {
       return res.status(404).json({ success: false, message: "Achievement not found" });
     }
 
-    // Check if there are user achievements associated
-    const userAchievementsCount = await prisma.userAchievement.count({
-      where: { achievement_id: id }
-    });
-
-    if (userAchievementsCount > 0) {
-      return res.status(400).json({ success: false, message: "Cannot delete achievement, users have progress on it" });
-    }
-
-    await prisma.achievement.delete({
-      where: { id },
-    });
+    // Delete associated user progress and the achievement in a transaction
+    await prisma.$transaction([
+      prisma.userAchievement.deleteMany({
+        where: { achievement_id: id },
+      }),
+      prisma.achievement.delete({
+        where: { id },
+      }),
+    ]);
 
     res.status(200).json({ success: true, message: "Achievement deleted successfully" });
   } catch (error) {

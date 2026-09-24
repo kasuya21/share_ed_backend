@@ -96,3 +96,37 @@ test("admin sessions older than twelve hours require a new login", async t => {
   assert.equal(response.status, 401);
   assert.equal((await response.json()).code, "ADMIN_REAUTHENTICATION_REQUIRED");
 });
+
+test("deleteAchievement cascades user progress deletion in transaction", async t => {
+  const existing = { id: "ach-1", title: "Test Achievement" };
+  mock(t, prisma.achievement, "findUnique", async () => existing);
+
+  let deletedUserAchievementsWhere = null;
+  let deletedAchievementWhere = null;
+
+  mock(t, prisma, "$transaction", async (operations) => Promise.all(operations));
+  mock(t, prisma.userAchievement, "deleteMany", async ({ where }) => {
+    deletedUserAchievementsWhere = where;
+    return { count: 3 };
+  });
+  mock(t, prisma.achievement, "delete", async ({ where }) => {
+    deletedAchievementWhere = where;
+    return existing;
+  });
+
+  const req = { params: { id: "ach-1" } };
+  const res = {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(data) { this.body = data; return this; },
+  };
+
+  const { deleteAchievement } = await import("../controllers/admin.achievement.controller.js");
+  await deleteAchievement(req, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.deepEqual(deletedUserAchievementsWhere, { achievement_id: "ach-1" });
+  assert.deepEqual(deletedAchievementWhere, { id: "ach-1" });
+});
