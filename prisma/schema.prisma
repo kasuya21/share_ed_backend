@@ -52,11 +52,13 @@ enum NotificationTypeCode {
 
   // Post moderation
   POST_SUSPENDED
+  POST_RESTORED
   POST_REMOVED
   POST_REPORTED
 
   // Achievement / Milestone
   ACHIEVEMENT_COMPLETED
+  QUEST_COMPLETED
 
   // Account management
   ACCOUNT_BANNED
