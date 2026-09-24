@@ -4,16 +4,41 @@ import cloudinary from "../configs/cloudinary.config.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import crypto from "crypto";
 
-// Keep reward assets in their original image format. Applying q_auto/f_auto while
-// uploading an APNG can create a single-frame derived asset that cannot be made
-// animated again by adding fl_apng to its delivery URL.
+const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+
+export function isAnimatedPng(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 20 || !buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    return false;
+  }
+  for (let offset = 8; offset + 12 <= buffer.length;) {
+    const length = buffer.readUInt32BE(offset);
+    const next = offset + 12 + length;
+    if (next > buffer.length) return false;
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    if (type === "acTL") return true;
+    if (type === "IDAT" || type === "IEND") return false;
+    offset = next;
+  }
+  return false;
+}
+
+export function rewardUploadOptions(fileBuffer, folder) {
+  if (!isAnimatedPng(fileBuffer)) return { folder, resource_type: "image" };
+
+  // Cloudinary's image pipeline can flatten APNGs during ingestion. Raw assets
+  // retain the exact bytes; keeping a .png suffix also gives browsers the
+  // correct content type when the returned URL is rendered in an <img>.
+  return {
+    folder,
+    public_id: `${crypto.randomUUID()}.png`,
+    resource_type: "raw",
+  };
+}
+
 const uploadToCloudinary = async (fileBuffer, folder) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      {
-        folder,
-        resource_type: "image"
-      },
+      rewardUploadOptions(fileBuffer, folder),
       (error, result) => {
         if (error) reject(error);
         else resolve(result);
@@ -113,7 +138,10 @@ export const updateReward = async (req, res) => {
     }
 
     if (req.file) {
-      if (reward.image_url) await deleteFromCloudinary(reward.image_url);
+      if (reward.image_url) {
+        const resourceType = reward.image_url.includes("/raw/upload/") ? "raw" : "image";
+        await deleteFromCloudinary(reward.image_url, resourceType);
+      }
       const result = await uploadToCloudinary(
         req.file.buffer,
         "share-ed/rewards"
