@@ -152,7 +152,8 @@ export const updateProfile = async (req, res) => {
         role: true,
         social_links: true,
         current_theme_id: true,
-        current_frame_id: true
+        current_frame_id: true,
+        current_frame: true
       }
     });
 
@@ -242,18 +243,30 @@ export const equipItem = async (req, res) => {
       if (unlockedItem.item.item_type !== type) {
          return res.status(400).json({ success: false, message: "ประเภทไอเท็มไม่ตรงกับที่ระบุ" });
       }
+
+      if (!unlockedItem.item.is_active) {
+        return res.status(400).json({ success: false, message: "ไอเท็มนี้ไม่เปิดให้ใช้งาน" });
+      }
     }
 
     const updateData = type === 'THEME' 
       ? { current_theme_id: itemId || null }
       : { current_frame_id: itemId || null };
 
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: updateData
+      data: updateData,
+      select: {
+        current_frame_id: true,
+        current_frame: true,
+      },
     });
 
-    res.status(200).json({ success: true, message: `สวมใส่ ${type === 'THEME' ? 'ธีม' : 'กรอบรูป'} สำเร็จ` });
+    res.status(200).json({
+      success: true,
+      message: `สวมใส่ ${type === 'THEME' ? 'ธีม' : 'กรอบรูป'} สำเร็จ`,
+      data: updatedUser,
+    });
   } catch (error) {
     logError("controllers.equipItem", error, req);
     res.status(500).json({ success: false, message: "สวมใส่ไอเท็มล้มเหลว" });

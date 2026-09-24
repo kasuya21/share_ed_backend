@@ -13,6 +13,8 @@ const {
   trendingPostsCache,
 } = await import("../controllers/post.controller.js");
 const { verifyAccessToken } = await import("../utils/auth-token.js");
+const { equipItem } = await import("../controllers/user.controller.js");
+const { verifyUser } = await import("../controllers/auth.controller.js");
 
 function replace(t, object, key, implementation) {
   const original = object[key];
@@ -98,6 +100,31 @@ test("access tokens issued for longer than one hour are rejected", async () => {
   assert.match(result.error.message, /lifetime/i);
 });
 
+test("auth me loads the current frame from the database", async t => {
+  const user = {
+    id: "user-1",
+    email: "user@example.com",
+    status: "ACTIVE",
+    profile_image: null,
+    profile_banner: null,
+    wallpaper: null,
+    social_links: null,
+    current_frame_id: "frame-1",
+    current_frame: { id: "frame-1", item_name: "Frame 1" },
+  };
+  const findUnique = replace(t, prisma.user, "findUnique", async () => user);
+  const result = response();
+
+  await verifyUser({
+    user: { id: "user-1", email: "user@example.com", user_metadata: {} },
+  }, result.res);
+
+  const query = findUnique.mock.calls[0].arguments[0];
+  assert.equal(query.include.current_frame, true);
+  assert.equal(result.body.current_frame_id, "frame-1");
+  assert.deepEqual(result.body.current_frame, user.current_frame);
+});
+
 test("liking a post does not recount all author likes across all posts", async t => {
   const { toggleLike } = await import("../controllers/like.controller.js");
   replace(t, prisma.post, "findUnique", async () => ({ id: "post-1", author_id: "author-1", post_status: "ACTIVE" }));
@@ -114,6 +141,45 @@ test("liking a post does not recount all author likes across all posts", async t
   assert.equal(result.body.isLiked, true);
   assert.equal(likeCount.mock.callCount(), 0);
   assert.deepEqual(achievementFind.mock.calls[0].arguments[0].where, { achievement_type: "POST_LIKES" });
+});
+
+test("equipping a frame rejects an inactive unlocked item", async t => {
+  replace(t, prisma.userUnlockedItem, "findFirst", async () => ({
+    item: { item_type: "FRAME", is_active: false },
+  }));
+  const update = replace(t, prisma.user, "update", async () => ({}));
+  const result = response();
+
+  await equipItem({
+    user: { id: "user-1" },
+    body: { itemId: "frame-inactive", type: "FRAME" },
+  }, result.res);
+
+  assert.equal(result.status, 400);
+  assert.equal(result.body.success, false);
+  assert.equal(update.mock.callCount(), 0);
+});
+
+test("equipping a frame returns the database-backed equipped state", async t => {
+  replace(t, prisma.userUnlockedItem, "findFirst", async () => ({
+    item: { item_type: "FRAME", is_active: true },
+  }));
+  const equippedState = {
+    current_frame_id: "frame-1",
+    current_frame: { id: "frame-1", item_name: "Frame 1" },
+  };
+  const update = replace(t, prisma.user, "update", async () => equippedState);
+  const result = response();
+
+  await equipItem({
+    user: { id: "user-1" },
+    body: { itemId: "frame-1", type: "FRAME" },
+  }, result.res);
+
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.data, equippedState);
+  assert.deepEqual(update.mock.calls[0].arguments[0].where, { id: "user-1" });
+  assert.deepEqual(update.mock.calls[0].arguments[0].data, { current_frame_id: "frame-1" });
 });
 
 test("upload signature generation signs folder and timestamp", async () => {

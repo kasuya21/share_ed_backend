@@ -1,0 +1,183 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/test";
+
+const { prisma } = await import("../configs/prisma.js");
+const { initIO } = await import("../configs/socket.js");
+const { joinOwnRoom } = await import("../middlewares/socket.middleware.js");
+const { reportPost } = await import("../controllers/report.controller.js");
+const { actionOnPost } = await import("../controllers/moderator.controller.js");
+
+function replace(t, object, key, value) {
+  const original = object[key];
+  object[key] = t.mock.fn(value);
+  t.after(() => { object[key] = original; });
+  return object[key];
+}
+
+function responseRecorder() {
+  const response = {};
+  return {
+    response,
+    res: {
+      status(code) { response.status = code; return this; },
+      json(body) { response.body = body; return this; },
+    },
+  };
+}
+
+function socketRecorder(t) {
+  const events = [];
+  initIO({
+    to(room) {
+      return { emit(event, payload) { events.push({ room, event, payload }); } };
+    },
+  });
+  t.after(() => initIO(null));
+  return events;
+}
+
+test("moderator and admin sockets join the protected moderation room", () => {
+  const rooms = [];
+  const socket = {
+    data: { userId: "moderator-1", role: "MODERATOR" },
+    join(room) { rooms.push(room); },
+    on() {},
+  };
+
+  joinOwnRoom(socket);
+
+  assert.deepEqual(rooms, ["user:moderator-1", "role:moderation"]);
+});
+
+test("a new report broadcasts the complete updated post to reviewers", async (t) => {
+  const events = socketRecorder(t);
+  const reportedPost = {
+    id: "post-1",
+    title: "Reported post",
+    post_status: "ACTIVE",
+    reports: [{ id: "report-1", reason: "สแปม" }],
+    author: { username: "author", email: "author@example.com" },
+    _count: { reports: 10 },
+  };
+  let postLookup = 0;
+  replace(t, prisma.post, "findUnique", async () => {
+    postLookup += 1;
+    return postLookup === 1
+      ? { id: "post-1", title: "Reported post", author_id: "owner", post_status: "ACTIVE", _count: { reports: 9 } }
+      : reportedPost;
+  });
+  replace(t, prisma.report, "findUnique", async () => null);
+  replace(t, prisma.report, "create", async () => ({ id: "report-1" }));
+  replace(t, prisma.post, "update", async () => ({ id: "post-1", post_status: "UNACTIVED" }));
+  replace(t, prisma.user, "findMany", async () => []);
+  replace(t, prisma.notification, "create", async ({ data }) => ({
+    id: "notification-1",
+    ...data,
+    created_at: new Date("2026-09-24T00:00:00.000Z"),
+  }));
+
+  const { response, res } = responseRecorder();
+  await reportPost({
+    user: { id: "reporter-1" },
+    body: { post_id: "post-1", reason: "สแปม" },
+  }, res);
+
+  assert.equal(response.status, 201);
+  const reportEvent = events.find((entry) => entry.event === "report_created");
+  assert.ok(reportEvent);
+  assert.equal(reportEvent.room, "role:moderation");
+  assert.deepEqual(reportEvent.payload.post, reportedPost);
+});
+
+test("a moderation decision broadcasts an immediate badge update", async (t) => {
+  const events = socketRecorder(t);
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-1",
+    author_id: "owner-1",
+    title: "Reported post",
+  }));
+  replace(t, prisma.post, "update", async () => ({ id: "post-1", post_status: "UNACTIVED" }));
+  replace(t, prisma.notification, "create", async ({ data }) => ({
+    id: "notification-1",
+    ...data,
+    created_at: new Date("2026-09-23T10:00:00.000Z"),
+  }));
+
+  const { response, res } = responseRecorder();
+  await actionOnPost({ params: { post_id: "post-1" }, body: { action: "SUSPEND" } }, res);
+
+  assert.equal(response.status, 200);
+  const ownerNotification = events.find((entry) => entry.event === "new_notification");
+  assert.ok(ownerNotification);
+  assert.equal(ownerNotification.room, "user:owner-1");
+  assert.equal(ownerNotification.payload.postId, "post-1");
+  assert.match(ownerNotification.payload.message, /Reported post/);
+  const moderationEvent = events.find((entry) => entry.event === "report_reviewed");
+  assert.ok(moderationEvent);
+  assert.equal(moderationEvent.room, "role:moderation");
+  assert.deepEqual(moderationEvent.payload, { postId: "post-1", action: "SUSPEND" });
+});
+
+test("a deleted post cannot be restored after the five minute recovery window", async (t) => {
+  initIO(null);
+  const transaction = replace(t, prisma, "$transaction", async () => []);
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-expired",
+    author_id: "owner-1",
+    title: "Expired post",
+    post_status: "DELETED",
+    updated_at: new Date(Date.now() - 5 * 60 * 1000 - 1),
+  }));
+
+  const { response, res } = responseRecorder();
+  await actionOnPost({
+    params: { post_id: "post-expired" },
+    body: { action: "RESTORE" },
+  }, res);
+
+  assert.equal(response.status, 410);
+  assert.match(response.body.message, /5 นาที/);
+  assert.equal(transaction.mock.callCount(), 0);
+});
+
+test("a deleted post can be restored during the five minute recovery window", async (t) => {
+  const events = socketRecorder(t);
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-recoverable",
+    author_id: "owner-1",
+    title: "Recoverable post",
+    post_status: "DELETED",
+    updated_at: new Date(Date.now() - 4 * 60 * 1000),
+  }));
+  replace(t, prisma.report, "deleteMany", async () => ({ count: 1 }));
+  const update = replace(t, prisma.post, "update", async () => ({
+    id: "post-recoverable",
+    post_status: "ACTIVE",
+  }));
+  replace(t, prisma, "$transaction", async (operations) => Promise.all(operations));
+  replace(t, prisma.notification, "create", async ({ data }) => ({
+    id: "notification-restored",
+    ...data,
+    created_at: new Date("2026-09-23T10:00:00.000Z"),
+  }));
+
+  const { response, res } = responseRecorder();
+  await actionOnPost({
+    params: { post_id: "post-recoverable" },
+    body: { action: "RESTORE" },
+  }, res);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(update.mock.calls[0].arguments[0].data, {
+    post_status: "ACTIVE",
+    deleted_by: null,
+    deleted_from_status: null,
+  });
+  const restoredNotification = events.find((entry) => entry.event === "new_notification");
+  assert.equal(restoredNotification.payload.postId, "post-recoverable");
+  assert.match(restoredNotification.payload.message, /Recoverable post/);
+  const reviewEvent = events.find((entry) => entry.event === "report_reviewed");
+  assert.equal(reviewEvent.payload.action, "RESTORE");
+});

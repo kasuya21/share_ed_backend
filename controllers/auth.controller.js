@@ -147,6 +147,7 @@ export const loginUser = async (req, res) => {
     let dbUser = await prisma.user.findUnique({
       where: { id: authUser.id },
       include: {
+        current_frame: true,
         unlocked_items: {
           include: { item: true }
         },
@@ -167,6 +168,7 @@ export const loginUser = async (req, res) => {
           status: "ACTIVE"
         },
         include: {
+          current_frame: true,
           unlocked_items: {
             include: { item: true }
           },
@@ -217,6 +219,7 @@ export const verifyUser = async (req, res) => {
     let dbUser = await prisma.user.findUnique({
       where: { id: authUser.id },
       include: {
+        current_frame: true,
         unlocked_items: {
           include: { item: true }
         },
@@ -266,6 +269,7 @@ export const verifyUser = async (req, res) => {
             status: "ACTIVE"
           },
           include: {
+            current_frame: true,
             unlocked_items: {
               include: { item: true }
             },
@@ -290,6 +294,7 @@ export const verifyUser = async (req, res) => {
           where: { id: authUser.id },
           data: updateData,
           include: {
+            current_frame: true,
             unlocked_items: {
               include: { item: true }
             },
