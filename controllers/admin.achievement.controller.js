@@ -1,5 +1,6 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import crypto from "crypto";
 
@@ -181,22 +182,76 @@ export const deleteAchievement = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const existingAchievement = await prisma.achievement.findUnique({ where: { id } });
+    const existingAchievement = await prisma.achievement.findUnique({
+      where: { id },
+      include: { reward_item: true },
+    });
     if (!existingAchievement) {
       return res.status(404).json({ success: false, message: "Achievement not found" });
     }
 
-    // Delete associated user progress and the achievement in a transaction
-    await prisma.$transaction([
+    const reward = existingAchievement.reward_item;
+    const rewardId = existingAchievement.reward_item_id;
+
+    // ตรวจสอบว่ามี Achievement อื่นใช้ Reward นี้ร่วมกันอยู่หรือไม่
+    let shouldDeleteReward = false;
+    if (rewardId) {
+      const otherAchievementsCount = await prisma.achievement.count({
+        where: {
+          reward_item_id: rewardId,
+          id: { not: id },
+        },
+      });
+      shouldDeleteReward = otherAchievementsCount === 0;
+    }
+
+    const transactionSteps = [
+      // 1. ลบความคืบหน้าของผู้ใช้ทั้งหมดสำหรับ Achievement นี้
       prisma.userAchievement.deleteMany({
         where: { achievement_id: id },
       }),
+      // 2. ลบ Achievement
       prisma.achievement.delete({
         where: { id },
       }),
-    ]);
+    ];
 
-    res.status(200).json({ success: true, message: "Achievement deleted successfully" });
+    if (shouldDeleteReward && rewardId) {
+      // 3. รีเซ็ตกรอบ/ธีมสำหรับผู้ใช้ที่กำลังสวมใส่อยู่
+      transactionSteps.push(
+        prisma.user.updateMany({
+          where: { current_frame_id: rewardId },
+          data: { current_frame_id: null },
+        }),
+        prisma.user.updateMany({
+          where: { current_theme_id: rewardId },
+          data: { current_theme_id: null },
+        }),
+        // 4. ลบประวัติการปลดล็อกไอเทมของผู้ใช้
+        prisma.userUnlockedItem.deleteMany({
+          where: { item_id: rewardId },
+        }),
+        // 5. ลบของรางวัล/กรอบ (RewardItem) ออกจากระบบ
+        prisma.rewardItem.delete({
+          where: { id: rewardId },
+        })
+      );
+    }
+
+    await prisma.$transaction(transactionSteps);
+
+    // 6. ลบรูปกรอบออกจาก Cloudinary เมื่อลบของรางวัลสำเร็จ
+    if (shouldDeleteReward && reward?.image_url) {
+      const resourceType = reward.image_url.includes("/raw/upload/") ? "raw" : "image";
+      await deleteFromCloudinary(reward.image_url, resourceType);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: shouldDeleteReward
+        ? "ลบความสำเร็จและกรอบรางวัลเรียบร้อยแล้ว"
+        : "ลบความสำเร็จเรียบร้อยแล้ว",
+    });
   } catch (error) {
     logError("controllers.deleteAchievement", error, req);
     res.status(500).json({ success: false, message: "Failed to delete achievement" });
