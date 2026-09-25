@@ -1,6 +1,7 @@
 import cloudinary from "../configs/cloudinary.config.js";
 import { prisma } from "../configs/prisma.js";
 import { extractPublicId } from "./cloudinary.helper.js";
+import { deleteSupabasePdfObject } from "./supabase-storage.js";
 import { logWarn } from "./logger.js";
 
 async function destroyAsset(url, resourceType, postId) {
@@ -25,7 +26,16 @@ export async function deletePostPermanently(postId) {
       title: true,
       cover_image: true,
       content: true,
-      media: { select: { media_url: true, media_type: true } },
+      media: {
+        select: {
+          id: true,
+          media_url: true,
+          media_type: true,
+          storage_provider: true,
+          storage_bucket: true,
+          storage_path: true,
+        },
+      },
     },
   });
   if (!post) return null;
@@ -33,10 +43,14 @@ export async function deletePostPermanently(postId) {
   if (post.cover_image) await destroyAsset(post.cover_image, "image", postId);
 
   for (const media of post.media) {
-    const resourceType = media.media_type === "PDF"
-      ? "raw"
-      : media.media_type === "VIDEO" ? "video" : "image";
-    await destroyAsset(media.media_url, resourceType, postId);
+    if (media.storage_provider === "SUPABASE" && media.storage_path) {
+      await deleteSupabasePdfObject(media.storage_bucket, media.storage_path, { throwOnError: true });
+    } else if (media.media_url) {
+      const resourceType = media.media_type === "PDF"
+        ? "raw"
+        : media.media_type === "VIDEO" ? "video" : "image";
+      await destroyAsset(media.media_url, resourceType, postId);
+    }
   }
 
   const ownedContentFolder = `share-ed/users/${post.author_id}/posts/content/`;
@@ -53,14 +67,26 @@ export async function deletePostPermanently(postId) {
     if (!usedElsewhere) await destroyAsset(url, "image", postId);
   }
 
-  for (const folder of ["pdfs", "media"]) {
-    await cloudinary.api.delete_folder(`share-ed/posts/${postId}/${folder}`).catch((error) =>
-      logWarn("post.folder.delete_failed", error, undefined, { postId, folder })
-    );
-  }
-  await cloudinary.api.delete_folder(`share-ed/posts/${postId}`).catch((error) =>
-    logWarn("post.folder.delete_failed", error, undefined, { postId, folder: "post" })
+  const hasCloudinaryAssets = Boolean(
+    post.cover_image ||
+    inlineUrls.length > 0 ||
+    post.media.some((m) => m.storage_provider === "CLOUDINARY")
   );
+
+  if (hasCloudinaryAssets) {
+    for (const folder of ["pdfs", "media"]) {
+      try {
+        await cloudinary.api.delete_folder(`share-ed/posts/${postId}/${folder}`);
+      } catch (error) {
+        logWarn("post.folder.delete_failed", error, undefined, { postId, folder });
+      }
+    }
+    try {
+      await cloudinary.api.delete_folder(`share-ed/posts/${postId}`);
+    } catch (error) {
+      logWarn("post.folder.delete_failed", error, undefined, { postId, folder: "post" });
+    }
+  }
 
   await prisma.post.delete({ where: { id: postId } });
   return post;

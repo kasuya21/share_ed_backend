@@ -1882,7 +1882,7 @@ export const swaggerDocument = {
     "/reports": {
       "post": {
         "summary": "Report a Post",
-        "description": "Report a post. Limit: 1 report per user per post. If a post gets 10 reports, it will be automatically deactivated (UNACTIVED).",
+        "description": "Report a post. Limit: 1 report per user per post. If a post gets 5 reports, it will be automatically deactivated (UNACTIVED).",
         "tags": [
           "🚨 Reports"
         ],

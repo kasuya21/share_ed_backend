@@ -35,8 +35,13 @@ const router = express.Router();
 // All routes require authentication and ADMIN role
 router.use(authMiddleware, isAdmin);
 
-const requireAal2 = (req, res, next) => {
-  if (req.user.aal === "aal2") return next();
+const requireRoleChangeAssurance = (req, res, next) => {
+  // Supabase accounts without an enrolled MFA factor always receive an aal1
+  // access token. Keep MFA enforcement opt-in until the frontend provides the
+  // enrollment and challenge flow; the route is still protected by isAdmin's
+  // database role check and fresh admin-session requirement.
+  const requireMfa = process.env.REQUIRE_MFA_FOR_ROLE_CHANGES === "true";
+  if (!requireMfa || req.user?.aal === "aal2") return next();
   return res.status(403).json({
     success: false,
     code: "MFA_REQUIRED",
@@ -48,7 +53,7 @@ const requireAal2 = (req, res, next) => {
 router.get("/users", getAllUsers);
 
 // Change user role
-router.patch("/users/:id/role", requireAal2, changeUserRole);
+router.patch("/users/:id/role", requireRoleChangeAssurance, changeUserRole);
 
 // Ban / Unban user
 router.patch("/users/:id/ban", banUser);

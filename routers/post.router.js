@@ -13,7 +13,9 @@ import {
   getMostLikedPosts,
   getPlatformStats,
   getUploadSignature,
-  getUploadSignatures
+  getUploadSignatures,
+  getPdfUploadSignature,
+  downloadPostMedia,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
@@ -30,6 +32,9 @@ const uploadSignatureRateLimit = rateLimit({
 });
 router.get("/upload-signature", authMiddleware, uploadSignatureRateLimit, getUploadSignature);
 router.post("/upload-signatures", authMiddleware, uploadSignatureRateLimit, getUploadSignatures);
+router.post("/upload-signatures/pdf", authMiddleware, uploadSignatureRateLimit, getPdfUploadSignature);
+
+router.get("/:postId/media/:mediaId/download", authMiddleware, downloadPostMedia);
 router.get("/:id", authMiddleware, getPostById);
 
 // Multi-file upload: cover_image (1) + media_files (up to 15 PDFs/images)

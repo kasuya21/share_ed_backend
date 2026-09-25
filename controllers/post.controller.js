@@ -11,6 +11,15 @@ import { supabase } from "../configs/supabase.config.js";
 import { MemoryCache } from "../utils/cache.helper.js";
 import { deletePostPermanently } from "../utils/post-deletion.js";
 import {
+  createSignedPdfUpload,
+  verifyUploadedPdf,
+  createSignedPdfDownloadUrl,
+  deleteSupabasePdfObject,
+  SupabasePdfError,
+  getSupabasePdfBucket,
+  getPostPdfMaxBytes,
+} from "../utils/supabase-storage.js";
+import {
   DIRECT_UPLOAD_POLICIES,
   DirectUploadValidationError,
   directUploadParams,
@@ -32,7 +41,6 @@ const AUTHOR_FRAME_SELECT = {
     select: { id: true, item_name: true, image_url: true, metadata: true }
   }
 };
-
 const POST_CREATE_INCLUDE = {
   author: { select: AUTHOR_FRAME_SELECT },
   tags: { include: { tag: true } },
@@ -164,7 +172,7 @@ function cloudinaryRawPublicId(url) {
 
 async function restoreMissingPdfNames(post, req) {
   const missingPdfs = post.media?.filter(
-    media => media.media_type === "PDF" && !media.original_name
+    media => media.media_type === "PDF" && !media.original_name && media.storage_provider !== "SUPABASE"
   ) || [];
   await Promise.all(missingPdfs.map(async media => {
     const publicId = cloudinaryRawPublicId(media.media_url);
@@ -191,6 +199,29 @@ async function restoreMissingPdfNames(post, req) {
         mediaId: media.id,
       });
     }
+  }));
+}
+
+async function cleanupUnattachedSupabasePaths(paths) {
+  await Promise.all(paths.map(async ({ bucket, path }) => {
+    let attached;
+    try {
+      attached = await prisma.postMedia.findFirst({
+        where: {
+          storage_provider: "SUPABASE",
+          storage_bucket: bucket,
+          storage_path: path,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      // Fail closed: when the database cannot confirm ownership, leave the
+      // object for the expired-session cron instead of deleting a possibly
+      // committed post asset.
+      logWarn("supabase_storage.cleanup_attachment_check_failed", error, undefined, { bucket, path });
+      return;
+    }
+    if (!attached) await deleteSupabasePdfObject(bucket, path);
   }));
 }
 
@@ -444,6 +475,15 @@ export const getPostById = async (req, res) => {
 
     await restoreMissingPdfNames(post, req);
 
+    if (Array.isArray(post.media)) {
+      for (const m of post.media) {
+        m.download_url = `/api/v1/posts/${post.id}/media/${m.id}/download`;
+        if (!m.media_url && m.storage_provider === "SUPABASE") {
+          m.media_url = m.download_url;
+        }
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: post
@@ -472,6 +512,7 @@ export const getPostById = async (req, res) => {
 // ============================================================
 export const createPost = async (req, res) => {
   let stage = "validate";
+  const uploadedSupabasePaths = [];
   try {
     const {
       content = "",
@@ -536,11 +577,19 @@ export const createPost = async (req, res) => {
 
     const directCover = parseJsonValue(req.body?.cover_upload);
     const directMedia = parseJsonValue(req.body?.media_uploads);
+    const directPdf = parseJsonValue(req.body?.pdf_uploads || req.body?.pdf_upload);
+
+    let allDirectMedia = [];
+    if (Array.isArray(directMedia)) allDirectMedia.push(...directMedia);
+    else if (directMedia) allDirectMedia.push(directMedia);
+    if (Array.isArray(directPdf)) allDirectMedia.push(...directPdf);
+    else if (directPdf) allDirectMedia.push(directPdf);
+
     let verifiedCoverUrl = null;
     let verifiedDirectMedia = [];
     let verifiedSessionAssets = null;
 
-    if (directCover || directMedia) {
+    if (directCover || allDirectMedia.length > 0) {
       stage = "direct_upload_verify";
       try {
         if (!idempotencyKey) {
@@ -549,20 +598,31 @@ export const createPost = async (req, res) => {
         if (typeof uploadSessionId !== "string" || !/^[a-f0-9-]{36}$/i.test(uploadSessionId)) {
           throw new DirectUploadValidationError("ไม่พบ upload session ที่ถูกต้อง", "upload_session_id");
         }
-        const uploadSession = await prisma.uploadSession.findFirst({
-          where: {
-            id: uploadSessionId,
-            user_id: author_id,
-            status: "PENDING",
-            expires_at: { gt: new Date() },
-          },
-          select: { id: true },
+        const sessionAnyUser = await prisma.uploadSession.findUnique({
+          where: { id: uploadSessionId },
         });
-        if (!uploadSession) {
-          throw new DirectUploadValidationError("upload session หมดอายุ ถูกใช้แล้ว หรือไม่ใช่ของผู้ใช้งาน", "upload_session_id");
+        if (!sessionAnyUser || sessionAnyUser.user_id !== author_id) {
+          throw new SupabasePdfError("UPLOAD_SESSION_FORBIDDEN", "upload session ไม่ใช่ของผู้ใช้งาน", 403);
+        }
+        if (sessionAnyUser.status !== "PENDING" || sessionAnyUser.expires_at <= new Date()) {
+          throw new SupabasePdfError("UPLOAD_SESSION_EXPIRED", "upload session หมดอายุหรือถูกใช้แล้ว", 410);
         }
 
-        validateDirectUploadList(directCover, directMedia ?? []);
+        const cloudinaryMedia = [];
+        const supabasePdfs = [];
+        for (const asset of allDirectMedia) {
+          if (String(asset?.provider || "").toUpperCase() === "SUPABASE") {
+            supabasePdfs.push(asset);
+          } else {
+            cloudinaryMedia.push(asset);
+          }
+        }
+
+        validateDirectUploadList(directCover, cloudinaryMedia);
+        if (allDirectMedia.length > 15) {
+          throw new DirectUploadValidationError("แนบไฟล์ได้สูงสุด 15 ไฟล์");
+        }
+
         let totalBytes = 0;
         const sessionAssets = [];
         const lookup = (id, options) => cloudinary.api.resource(id, { ...options, timeout: 15000 });
@@ -583,8 +643,8 @@ export const createPost = async (req, res) => {
           totalBytes += verifiedCover.bytes;
           sessionAssets.push({ public_id: directCover.public_id, type: "cover", bytes: verifiedCover.bytes });
         }
-        if (Array.isArray(directMedia)) {
-          verifiedDirectMedia = await mapWithConcurrency(directMedia, 4, async (asset, index) => {
+        if (cloudinaryMedia.length > 0) {
+          const verifiedCloudinary = await mapWithConcurrency(cloudinaryMedia, 4, async (asset, index) => {
             const type = asset?.resource_type === "raw" || asset?.format === "pdf" ? "pdf" : "media";
             const verified = await verifyStoredDirectUpload(asset, {
               ...verification, type, field: `media_uploads.${index}`,
@@ -592,15 +652,56 @@ export const createPost = async (req, res) => {
             totalBytes += verified.bytes;
             sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
             return {
+              storage_provider: "CLOUDINARY",
               media_url: verified.media_url,
               media_type: verified.media_type,
               original_name: normalizeOriginalFileName(asset.original_name),
             };
           });
+          verifiedDirectMedia.push(...verifiedCloudinary);
+        }
+        if (supabasePdfs.length > 0) {
+          const verifiedSupabase = await mapWithConcurrency(supabasePdfs, 3, async (asset) => {
+            const verified = await verifyUploadedPdf(asset, {
+              userId: author_id,
+              sessionId: uploadSessionId,
+            });
+            totalBytes += verified.file_size;
+            sessionAssets.push({
+              provider: "SUPABASE",
+              path: verified.storage_path,
+              bytes: verified.file_size,
+            });
+            uploadedSupabasePaths.push({
+              bucket: verified.storage_bucket,
+              path: verified.storage_path,
+            });
+            return {
+              storage_provider: "SUPABASE",
+              storage_bucket: verified.storage_bucket,
+              storage_path: verified.storage_path,
+              file_size: verified.file_size,
+              original_name: verified.original_name,
+              media_type: "PDF",
+              media_url: null,
+            };
+          });
+          verifiedDirectMedia.push(...verifiedSupabase);
         }
         if (totalBytes > 50 * 1024 * 1024) throw new DirectUploadValidationError("ขนาดไฟล์รวมเกิน 50 MB");
         verifiedSessionAssets = sessionAssets;
       } catch (error) {
+        if (uploadedSupabasePaths.length > 0) {
+          await cleanupUnattachedSupabasePaths(uploadedSupabasePaths);
+        }
+        if (error instanceof SupabasePdfError) {
+          logWarn("post.create.supabase_pdf_rejected", error, req, { stage, code: error.code });
+          return res.status(error.status).json({
+            success: false,
+            code: error.code,
+            message: error.message,
+          });
+        }
         if (!(error instanceof DirectUploadValidationError)) throw error;
         logWarn("post.create.direct_upload_rejected", error, req, { stage, field: error.field });
         return res.status(400).json({
@@ -670,6 +771,7 @@ export const createPost = async (req, res) => {
 
         const result = await uploadToCloudinary(file.buffer, uploadOptions);
         return {
+          storage_provider: "CLOUDINARY",
           media_url: result.secure_url,
           media_type: isPdf ? "PDF" : "IMAGE",
           original_name: normalizeOriginalFileName(file.originalname),
@@ -769,6 +871,15 @@ export const createPost = async (req, res) => {
       })();
     }
 
+    if (Array.isArray(post.media)) {
+      for (const m of post.media) {
+        m.download_url = `/api/v1/posts/${post.id}/media/${m.id}/download`;
+        if (!m.media_url && m.storage_provider === "SUPABASE") {
+          m.media_url = m.download_url;
+        }
+      }
+    }
+
     stage = "respond";
     res.status(201).json({
       success: true,
@@ -787,6 +898,16 @@ export const createPost = async (req, res) => {
           data: replayedPost,
         });
       }
+    }
+    if (uploadedSupabasePaths.length > 0) {
+      await cleanupUnattachedSupabasePaths(uploadedSupabasePaths);
+    }
+    if (error instanceof SupabasePdfError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
     }
     if (error instanceof DirectUploadValidationError) {
       return res.status(409).json({
@@ -815,6 +936,7 @@ export const createPost = async (req, res) => {
 // แก้ไขและปรับปรุงข้อมูลโพสต์ (รวมการเพิ่ม/ลดไฟล์แนบ)
 // ============================================================
 export const updatePost = async (req, res) => {
+  const uploadedSupabasePaths = [];
   try {
     const { id } = req.params;
     const { content, category_id, post_status, tags, remove_media_ids } = req.body || {};
@@ -944,8 +1066,12 @@ export const updatePost = async (req, res) => {
         });
 
         await mapWithConcurrency(mediaToDelete, 3, async m => {
-          const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
-          await deleteFromCloudinary(m.media_url, resourceType);
+          if (m.storage_provider === "SUPABASE" && m.storage_path) {
+            await deleteSupabasePdfObject(m.storage_bucket, m.storage_path, { throwOnError: true });
+          } else if (m.media_url) {
+            const resourceType = m.media_type === 'PDF' ? 'raw' : (m.media_type === 'VIDEO' ? 'video' : 'image');
+            await deleteFromCloudinary(m.media_url, resourceType);
+          }
         });
 
         await prisma.postMedia.deleteMany({
@@ -977,9 +1103,110 @@ export const updatePost = async (req, res) => {
       }
     });
 
-    // เพิ่มไฟล์แนบใหม่
+    // เพิ่มไฟล์แนบใหม่ (Multipart files)
     if (mediaFiles && mediaFiles.length > 0) {
       await handleMediaFiles(mediaFiles, id);
+    }
+
+    // เพิ่มไฟล์แนบใหม่ (Direct Supabase PDF uploads)
+    const directMedia = parseJsonValue(req.body?.media_uploads);
+    const directPdf = parseJsonValue(req.body?.pdf_uploads || req.body?.pdf_upload);
+    const updateUploadedPdfs = [];
+    const verifiedPdfUploads = [];
+    if (Array.isArray(directMedia)) updateUploadedPdfs.push(...directMedia.filter(m => String(m?.provider || "").toUpperCase() === "SUPABASE"));
+    else if (String(directMedia?.provider || "").toUpperCase() === "SUPABASE") updateUploadedPdfs.push(directMedia);
+    if (Array.isArray(directPdf)) updateUploadedPdfs.push(...directPdf.filter(m => String(m?.provider || "").toUpperCase() === "SUPABASE"));
+    else if (String(directPdf?.provider || "").toUpperCase() === "SUPABASE") updateUploadedPdfs.push(directPdf);
+
+    if (updateUploadedPdfs.length > 0) {
+      for (const asset of updateUploadedPdfs) {
+        const sessionId = asset.upload_session_id || asset.sessionId || req.body?.upload_session_id;
+        if (!sessionId) {
+          throw new SupabasePdfError("UPLOAD_SESSION_FORBIDDEN", "ไม่พบ upload session สำหรับไฟล์ PDF", 403);
+        }
+        const session = await prisma.uploadSession.findFirst({
+          where: {
+            id: sessionId,
+            user_id: user_id,
+            status: "PENDING",
+            expires_at: { gt: new Date() },
+          },
+        });
+        if (!session) {
+          const sessionAny = await prisma.uploadSession.findUnique({ where: { id: sessionId } });
+          if (!sessionAny || sessionAny.user_id !== user_id) {
+            throw new SupabasePdfError("UPLOAD_SESSION_FORBIDDEN", "Upload session ไม่ใช่ของผู้ใช้งาน", 403);
+          }
+          throw new SupabasePdfError("UPLOAD_SESSION_EXPIRED", "Upload session หมดอายุหรือถูกใช้แล้ว", 410);
+        }
+        const verified = await verifyUploadedPdf(asset, {
+          userId: user_id,
+          sessionId,
+        });
+        uploadedSupabasePaths.push({
+          bucket: verified.storage_bucket,
+          path: verified.storage_path,
+        });
+        verifiedPdfUploads.push({ sessionId, verified });
+      }
+
+      const createdMedia = await prisma.$transaction(async transaction => {
+        const rows = [];
+        for (const { verified } of verifiedPdfUploads) {
+          rows.push(await transaction.postMedia.create({
+            data: {
+              post_id: id,
+              storage_provider: "SUPABASE",
+              storage_bucket: verified.storage_bucket,
+              storage_path: verified.storage_path,
+              file_size: verified.file_size,
+              original_name: verified.original_name,
+              media_type: "PDF",
+              media_url: null,
+            },
+          }));
+        }
+
+        for (const sessionId of new Set(verifiedPdfUploads.map(item => item.sessionId))) {
+          const sessionAssets = verifiedPdfUploads
+            .filter(item => item.sessionId === sessionId)
+            .map(item => ({
+              provider: "SUPABASE",
+              path: item.verified.storage_path,
+              bytes: item.verified.file_size,
+            }));
+          const committed = await transaction.uploadSession.updateMany({
+            where: {
+              id: sessionId,
+              user_id,
+              status: "PENDING",
+              expires_at: { gt: new Date() },
+            },
+            data: {
+              status: "COMMITTED",
+              post_id: id,
+              verified_assets: sessionAssets,
+            },
+          });
+          if (committed.count !== 1) {
+            throw new SupabasePdfError("UPLOAD_SESSION_EXPIRED", "Upload session หมดอายุหรือถูกใช้แล้ว", 410);
+          }
+        }
+        return rows;
+      });
+
+      if (Array.isArray(updatedPost.media)) {
+        updatedPost.media.push(...createdMedia);
+      }
+    }
+
+    if (Array.isArray(updatedPost.media)) {
+      for (const m of updatedPost.media) {
+        m.download_url = `/api/v1/posts/${updatedPost.id}/media/${m.id}/download`;
+        if (!m.media_url && m.storage_provider === "SUPABASE") {
+          m.media_url = m.download_url;
+        }
+      }
     }
 
     // 🔔 แจ้งเตือน Followers เมื่อเปลี่ยนเป็น ACTIVE (จากที่เคยเป็นแบบร่างมาก่อน)
@@ -1023,6 +1250,16 @@ export const updatePost = async (req, res) => {
     });
 
   } catch (error) {
+    if (uploadedSupabasePaths?.length > 0) {
+      await cleanupUnattachedSupabasePaths(uploadedSupabasePaths);
+    }
+    if (error instanceof SupabasePdfError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
     logError("controllers.updatePost", error, req);
     res.status(500).json({
       success: false,
@@ -1391,6 +1628,213 @@ export const getUploadSignatures = async (req, res) => {
   } catch (error) {
     logError("controllers.getUploadSignatures", error, req);
     return res.status(500).json({ success: false, message: "Failed to generate upload signatures" });
+  }
+};
+
+// ============================================================
+// POST /api/v1/posts/upload-signatures/pdf
+// ขอ signed upload สำหรับ Supabase Storage (Private Bucket: post-pdfs)
+// ============================================================
+export const getPdfUploadSignature = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let sessionId = req.body?.upload_session_id || req.body?.sessionId || req.query?.upload_session_id;
+    let sessionExpiresAt;
+
+    if (sessionId) {
+      if (typeof sessionId !== "string" || !/^[a-f0-9-]{36}$/i.test(sessionId)) {
+        return res.status(400).json({
+          success: false,
+          code: "INVALID_UPLOAD_SESSION",
+          message: "รูปแบบ upload_session_id ไม่ถูกต้อง",
+        });
+      }
+      const existingSession = await prisma.uploadSession.findFirst({
+        where: {
+          id: sessionId,
+          user_id: userId,
+          status: "PENDING",
+          expires_at: { gt: new Date() },
+        },
+      });
+      if (!existingSession) {
+        const sessionAny = await prisma.uploadSession.findUnique({ where: { id: sessionId } });
+        if (!sessionAny || sessionAny.user_id !== userId) {
+          return res.status(403).json({
+            success: false,
+            code: "UPLOAD_SESSION_FORBIDDEN",
+            message: "Upload session ไม่ใช่ของผู้ใช้งาน",
+          });
+        }
+        return res.status(410).json({
+          success: false,
+          code: "UPLOAD_SESSION_EXPIRED",
+          message: "Upload session หมดอายุหรือถูกใช้แล้ว",
+        });
+      }
+      sessionExpiresAt = existingSession.expires_at;
+    } else {
+      sessionId = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await prisma.uploadSession.create({
+        data: {
+          id: sessionId,
+          user_id: userId,
+          requested_types: ["pdf"],
+          expires_at: expiresAt,
+        },
+      });
+      sessionExpiresAt = expiresAt;
+    }
+
+    const signedUploadData = await createSignedPdfUpload({
+      userId,
+      sessionId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...signedUploadData,
+        expiresAt: sessionExpiresAt.toISOString(),
+        sessionExpiresAt: sessionExpiresAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    if (error instanceof SupabasePdfError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    logError("controllers.getPdfUploadSignature", error, req);
+    return res.status(500).json({
+      success: false,
+      code: "PDF_STORAGE_ERROR",
+      message: "ไม่สามารถสร้าง URL สำหรับอัปโหลด PDF ได้",
+    });
+  }
+};
+
+// ============================================================
+// GET /api/v1/posts/:postId/media/:mediaId/download
+// ดาวน์โหลด PDF ด้วย signed URL อายุสั้น หรือ redirect สำหรับ Cloudinary เก่า
+// ============================================================
+export const downloadPostMedia = async (req, res) => {
+  try {
+    const postId = req.params.postId || req.params.id;
+    const mediaId = req.params.mediaId;
+    const userId = req.user?.id;
+    let userRole = req.userRole;
+    if (userId && !userRole) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      userRole = dbUser?.role;
+    }
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        author_id: true,
+        post_status: true,
+      },
+    });
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        code: "POST_NOT_FOUND",
+        message: "ไม่พบโพสต์",
+      });
+    }
+
+    if (post.post_status === "DRAFT" && post.author_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "คุณไม่มีสิทธิ์เข้าถึงโพสต์ฉบับร่างนี้",
+      });
+    }
+
+    if (post.post_status === "UNACTIVED" && post.author_id !== userId && !["MODERATOR", "ADMIN"].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        code: "FORBIDDEN",
+        message: "โพสต์นี้ถูกระงับการใช้งาน",
+      });
+    }
+
+    const media = await prisma.postMedia.findFirst({
+      where: {
+        id: mediaId,
+        post_id: postId,
+      },
+    });
+
+    if (!media) {
+      return res.status(404).json({
+        success: false,
+        code: "MEDIA_NOT_FOUND",
+        message: "ไม่พบไฟล์แนบของโพสต์นี้",
+      });
+    }
+
+    let downloadUrl;
+    if (media.storage_provider === "SUPABASE") {
+      if (!media.storage_path) {
+        return res.status(404).json({
+          success: false,
+          code: "PDF_OBJECT_NOT_FOUND",
+          message: "ไม่พบเส้นทางไฟล์ในพื้นที่จัดเก็บ",
+        });
+      }
+      downloadUrl = await createSignedPdfDownloadUrl(
+        media.storage_bucket || getSupabasePdfBucket(),
+        media.storage_path,
+        300
+      );
+    } else {
+      downloadUrl = media.media_url;
+      if (!downloadUrl) {
+        return res.status(404).json({
+          success: false,
+          code: "MEDIA_NOT_FOUND",
+          message: "ไม่พบ URL ของไฟล์",
+        });
+      }
+    }
+
+    if (req.query?.redirect === "false" || req.headers?.accept?.includes("application/json")) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          downloadUrl,
+          url: downloadUrl,
+          provider: media.storage_provider,
+          original_name: media.original_name,
+        },
+      });
+    }
+
+    return res.redirect(downloadUrl);
+  } catch (error) {
+    if (error instanceof SupabasePdfError) {
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
+    }
+    logError("post.media.download_failed", error, req, { postId: req.params?.postId, mediaId: req.params?.mediaId });
+    return res.status(500).json({
+      success: false,
+      code: "DOWNLOAD_FAILED",
+      message: "ไม่สามารถดาวน์โหลดไฟล์ได้",
+    });
   }
 };
 

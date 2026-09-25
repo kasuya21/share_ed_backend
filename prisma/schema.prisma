@@ -34,6 +34,11 @@ enum MediaType {
   PDF
 }
 
+enum StorageProvider {
+  CLOUDINARY
+  SUPABASE
+}
+
 enum ItemType {
   THEME
   FRAME
@@ -382,15 +387,21 @@ model PostTag {
 model PostMedia {
   id String @id @default(uuid()) @map("post_media_id")
 
-  media_url     String
-  media_type    MediaType
-  original_name String?
+  media_url        String?         @map("media_url")
+  media_type       MediaType
+  original_name    String?
+  storage_provider StorageProvider @default(CLOUDINARY) @map("storage_provider")
+  storage_bucket   String?         @map("storage_bucket")
+  storage_path     String?         @map("storage_path")
+  file_size        Int?            @map("file_size")
 
   post_id String
 
   // ลบ Post -> Media record หาย
   post Post @relation(fields: [post_id], references: [id], onDelete: Cascade)
 
+  @@index([post_id])
+  @@index([storage_provider])
   @@map("post_media")
 }
 
