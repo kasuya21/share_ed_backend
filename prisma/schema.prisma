@@ -280,6 +280,7 @@ model Comment {
   updated_at DateTime @updatedAt
 
   @@index([post_id])
+  @@index([post_id, created_at(sort: Desc)])
   @@index([user_id])
   @@map("comments")
 }
@@ -377,6 +378,7 @@ model PostTag {
   tag Tag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
 
   @@unique([post_id, tag_id])
+  @@index([tag_id, post_id])
   @@map("post_tags")
 }
 
@@ -617,5 +619,6 @@ model Report {
   created_at DateTime @default(now())
 
   @@unique([user_id, post_id])
+  @@index([user_id, created_at(sort: Desc)])
   @@map("reports")
 }
