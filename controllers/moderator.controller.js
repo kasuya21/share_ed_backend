@@ -4,10 +4,8 @@ import { createNotification } from "../utils/notification.helper.js";
 import { getIO } from "../configs/socket.js";
 import { deletePostPermanently } from "../utils/post-deletion.js";
 
-const REPORT_THRESHOLD = 5;
-
 const emitReportReviewed = (postId, action, extra = {}) => {
-  getIO()?.to("role:moderation").emit("report_reviewed", { postId, action, ...extra });
+  getIO()?.to("role:admin").emit("report_reviewed", { postId, action, ...extra });
 };
 
 export const getReportedPosts = async (req, res) => {
@@ -26,6 +24,7 @@ export const getReportedPosts = async (req, res) => {
       },
       include: {
         reports: {
+          orderBy: { created_at: "desc" },
           include: {
             user: { select: { username: true, email: true } }
           }
@@ -33,12 +32,13 @@ export const getReportedPosts = async (req, res) => {
         author: { select: { username: true, email: true } },
         _count: { select: { reports: true } }
       },
-      orderBy: {
-        created_at: "desc"
-      }
+      orderBy: [
+        { reports: { _count: "desc" } },
+        { updated_at: "desc" }
+      ]
     });
 
-    return res.status(200).json({ posts: posts.filter((post) => post._count.reports >= REPORT_THRESHOLD) });
+    return res.status(200).json({ posts: posts.filter((post) => post._count.reports > 0) });
   } catch (error) {
     logError("controllers.getReportedPosts", error, req);
     return res.status(500).json({ message: "Internal server error" });

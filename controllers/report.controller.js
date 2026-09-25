@@ -1,9 +1,6 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
-import { createNotification } from "../utils/notification.helper.js";
 import { getIO } from "../configs/socket.js";
-
-const REPORT_THRESHOLD = 5;
 
 export const reportPost = async (req, res) => {
   try {
@@ -39,56 +36,24 @@ export const reportPost = async (req, res) => {
     await prisma.report.create({ data: { user_id, post_id, reason } });
 
     const reportCount = post._count.reports + 1;
-    if (reportCount >= REPORT_THRESHOLD && post.post_status !== "UNACTIVED") {
-      await prisma.post.update({
-        where: { id: post_id },
-        data: { post_status: "UNACTIVED" }
-      });
-
-      // 🔔 แจ้งเจ้าของโพสต์
-      await createNotification(
-        post.author_id,
-        "POST_SUSPENDED",
-        `โพสต์ “${post.title}” ของคุณถูกระงับอัตโนมัติ เนื่องจากได้รับรายงาน ${reportCount} ครั้ง`,
-        post.id
-      );
-
-      // 🔔 แจ้ง Moderator/Admin ทุกคน
-      const moderators = await prisma.user.findMany({
-        where: { role: { in: ["MODERATOR", "ADMIN"] } },
-        select: { id: true }
-      });
-      await Promise.all(
-        moderators.map(m =>
-          createNotification(
-            m.id,
-            "POST_REPORTED",
-            `โพสต์ “${post.title}” ถูกระงับอัตโนมัติหลังได้รับรายงาน ${reportCount} ครั้ง`,
-            post.id
-          )
-        )
-      );
-    }
-
-    if (reportCount >= REPORT_THRESHOLD) {
-      const reportedPost = await prisma.post.findUnique({
-        where: { id: post_id },
-        include: {
-          reports: {
-            include: {
-              user: { select: { username: true, email: true } }
-            }
-          },
-          author: { select: { username: true, email: true } },
-          _count: { select: { reports: true } }
-        }
-      });
-      getIO()?.to("role:moderation").emit("report_created", {
-        postId: post_id,
-        reportCount,
-        post: reportedPost,
-      });
-    }
+    const reportedPost = await prisma.post.findUnique({
+      where: { id: post_id },
+      include: {
+        reports: {
+          orderBy: { created_at: "desc" },
+          include: {
+            user: { select: { username: true, email: true } }
+          }
+        },
+        author: { select: { username: true, email: true } },
+        _count: { select: { reports: true } }
+      }
+    });
+    getIO()?.to("role:admin").emit("report_created", {
+      postId: post_id,
+      reportCount,
+      post: reportedPost,
+    });
 
     return res.status(201).json({ message: "Post reported successfully", reportCount });
   } catch (error) {

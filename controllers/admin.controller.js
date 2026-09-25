@@ -55,9 +55,9 @@ export const getAllUsers = async (req, res) => {
 export const changeUserRole = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role } = req.body; // MEMBER, MODERATOR, ADMIN
+    const { role } = req.body; // MEMBER, ADMIN
 
-    if (!role || !["MEMBER", "MODERATOR", "ADMIN"].includes(role)) {
+    if (!role || !["MEMBER", "ADMIN"].includes(role)) {
       return res.status(400).json({
         success: false,
         message: "Invalid role specified"
