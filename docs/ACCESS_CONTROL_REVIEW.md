@@ -4,7 +4,7 @@
 - Public: active post feeds, categories, public profile fields, follower/following lists, comments on ACTIVE posts, registration and login.
 - Authenticated and active local account: post detail, social mutations, personal notifications/bookmarks/reports/inventory, achievements and profile changes. /auth/me alone permits provisioning a missing local account.
 - Owner only: post edits/deletes, comment edits/deletes, profile updates, reward equipment and claims. Media removal is scoped to the owned post ID.
-- ADMIN only: account roles/status, categories, rewards and achievement administration. MODERATOR or ADMIN: moderation routes.
+- ADMIN only: account roles/status, categories, rewards, achievement administration, and report moderation routes.
 - Post detail keeps existing owner access to drafts and database-authorized moderator/admin access to suspended posts; other users cannot read drafts.
 
 ## Changes

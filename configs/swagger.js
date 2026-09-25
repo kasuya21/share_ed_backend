@@ -1976,7 +1976,7 @@ export const swaggerDocument = {
     "/moderator/reports": {
       "get": {
         "summary": "Get Reported Posts",
-        "description": "Retrieve all posts that have been reported. Access restricted to MODERATOR and ADMIN roles.",
+        "description": "Retrieve all posts that have been reported. Access restricted to ADMIN users.",
         "tags": [
           "🛡️ Moderator"
         ],
@@ -2017,7 +2017,7 @@ export const swaggerDocument = {
             "description": "Unauthorized."
           },
           "403": {
-            "description": "Forbidden - Role must be MODERATOR or ADMIN."
+            "description": "Forbidden - Role must be ADMIN."
           },
           "500": {
             "description": "Server error."
@@ -2149,7 +2149,7 @@ export const swaggerDocument = {
     "/admin/users/{id}/role": {
       "patch": {
         "summary": "Change User Role",
-        "description": "Change user role to MEMBER, MODERATOR, or ADMIN. Role required: ADMIN.",
+        "description": "Change user role to MEMBER or ADMIN. Role required: ADMIN.",
         "tags": [
           "⚙️ Admin"
         ],
@@ -2183,7 +2183,6 @@ export const swaggerDocument = {
                     "type": "string",
                     "enum": [
                       "MEMBER",
-                      "MODERATOR",
                       "ADMIN"
                     ]
                   }

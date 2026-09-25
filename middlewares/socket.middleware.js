@@ -29,8 +29,8 @@ export function socketAuth(supabase, prisma) {
 
 export function joinOwnRoom(socket) {
   socket.join(`user:${socket.data.userId}`);
-  if (["ADMIN", "MODERATOR"].includes(socket.data.role)) {
-    socket.join("role:moderation");
+  if (socket.data.role === "ADMIN") {
+    socket.join("role:admin");
   }
   // Keep compatibility with old clients, but never trust their room/user ID.
   socket.on("join", () => socket.join(`user:${socket.data.userId}`));

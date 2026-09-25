@@ -475,7 +475,7 @@ export const getPostById = async (req, res) => {
       });
     }
 
-    if (post.post_status === "UNACTIVED" && post.author_id !== userId && !["MODERATOR", "ADMIN"].includes(userRole)) {
+    if (post.post_status === "UNACTIVED" && post.author_id !== userId && userRole !== "ADMIN") {
       return res.status(403).json({
         success: false,
         message: "โพสต์นี้ถูกซ่อนหรือระงับการเข้าใช้งานเนื่องจากขัดต่อกฎของระบบ"
@@ -1296,7 +1296,7 @@ export const deletePost = async (req, res) => {
       return res.status(403).json({ success: false, message: "คุณไม่มีสิทธิ์ลบโพสต์ของผู้อื่น" });
     }
     await deletePostPermanently(id);
-    getIO()?.to("role:moderation").emit("report_reviewed", { postId: id, action: "DELETE" });
+    getIO()?.to("role:admin").emit("report_reviewed", { postId: id, action: "DELETE" });
 
     platformStatsCache.clear();
     trendingPostsCache.clear();
@@ -1769,7 +1769,7 @@ export const downloadPostMedia = async (req, res) => {
       });
     }
 
-    if (post.post_status === "UNACTIVED" && post.author_id !== userId && !["MODERATOR", "ADMIN"].includes(userRole)) {
+    if (post.post_status === "UNACTIVED" && post.author_id !== userId && userRole !== "ADMIN") {
       return res.status(403).json({
         success: false,
         code: "FORBIDDEN",

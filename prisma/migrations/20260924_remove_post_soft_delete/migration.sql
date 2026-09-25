@@ -32,6 +32,11 @@ CREATE TYPE "NotificationTypeCode_new" AS ENUM (
   'ACCOUNT_UNBANNED'
 );
 ALTER TABLE "notifications" ALTER COLUMN "type" DROP DEFAULT;
+-- The partial LIKE index stores a predicate typed with the old enum. Drop all
+-- indexes that depend on the enum column before changing its type, then rebuild
+-- them after the replacement enum has taken the original name.
+DROP INDEX IF EXISTS "notifications_like_identity_key";
+DROP INDEX IF EXISTS "notifications_user_id_actor_id_post_id_type_idx";
 ALTER TABLE "notifications"
 ALTER COLUMN "type" TYPE "NotificationTypeCode_new"
 USING ("type"::text::"NotificationTypeCode_new");
@@ -39,3 +44,10 @@ ALTER TYPE "NotificationTypeCode" RENAME TO "NotificationTypeCode_old";
 ALTER TYPE "NotificationTypeCode_new" RENAME TO "NotificationTypeCode";
 DROP TYPE "NotificationTypeCode_old";
 ALTER TABLE "notifications" ALTER COLUMN "type" SET DEFAULT 'NEW_POST';
+
+CREATE INDEX "notifications_user_id_actor_id_post_id_type_idx"
+ON "notifications"("user_id", "actor_id", "post_id", "type");
+
+CREATE UNIQUE INDEX "notifications_like_identity_key"
+ON "notifications"("user_id", "actor_id", "post_id", "type")
+WHERE "type" = 'LIKE' AND "actor_id" IS NOT NULL AND "post_id" IS NOT NULL;
