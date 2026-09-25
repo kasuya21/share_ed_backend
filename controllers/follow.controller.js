@@ -113,6 +113,9 @@ export const unfollowUser = async (req, res) => {
       }
     });
 
+    const totalFollowers = await prisma.follow.count({ where: { following_id } });
+    await updateAchievementProgress(following_id, "FOLLOWERS_COUNT", totalFollowers);
+
     res.status(200).json({
       success: true,
       message: "Unfollowed successfully"

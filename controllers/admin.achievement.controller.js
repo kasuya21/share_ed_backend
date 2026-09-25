@@ -3,6 +3,7 @@ import { prisma } from "../configs/prisma.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import cloudinary from "../configs/cloudinary.config.js";
 import crypto from "crypto";
+import { SUPPORTED_ACHIEVEMENT_TYPES } from "../utils/achievement.helper.js";
 
 // Helper for Cloudinary Uploads
 const uploadToCloudinary = async (fileBuffer, folder, transformation = []) => {
@@ -51,6 +52,16 @@ export const createAchievement = async (req, res) => {
     if (!title || !description || target_value === undefined || !achievement_type) {
       return res.status(400).json({ success: false, message: "Missing required achievement fields" });
     }
+    const parsedTargetValue = Number(target_value);
+    if (!Number.isInteger(parsedTargetValue) || parsedTargetValue < 1) {
+      return res.status(400).json({ success: false, message: "target_value must be a positive integer" });
+    }
+    if (!SUPPORTED_ACHIEVEMENT_TYPES.includes(achievement_type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported achievement_type. Use: ${SUPPORTED_ACHIEVEMENT_TYPES.join(", ")}`,
+      });
+    }
 
     // If reward_item_id is provided, check if it exists
     if (reward_item_id) {
@@ -91,7 +102,7 @@ export const createAchievement = async (req, res) => {
       data: {
         title,
         description,
-        target_value: parseInt(target_value, 10),
+        target_value: parsedTargetValue,
         achievement_type,
         reward_item_id: reward_item_id || null,
       },
@@ -117,6 +128,18 @@ export const updateAchievement = async (req, res) => {
     const existingAchievement = await prisma.achievement.findUnique({ where: { id } });
     if (!existingAchievement) {
       return res.status(404).json({ success: false, message: "Achievement not found" });
+    }
+    if (target_value !== undefined) {
+      const parsedTargetValue = Number(target_value);
+      if (!Number.isInteger(parsedTargetValue) || parsedTargetValue < 1) {
+        return res.status(400).json({ success: false, message: "target_value must be a positive integer" });
+      }
+    }
+    if (achievement_type && !SUPPORTED_ACHIEVEMENT_TYPES.includes(achievement_type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported achievement_type. Use: ${SUPPORTED_ACHIEVEMENT_TYPES.join(", ")}`,
+      });
     }
 
     // If an existing reward_item_id is provided directly
@@ -157,7 +180,7 @@ export const updateAchievement = async (req, res) => {
     const updateData = {};
     if (title) updateData.title = title;
     if (description) updateData.description = description;
-    if (target_value !== undefined) updateData.target_value = parseInt(target_value, 10);
+    if (target_value !== undefined) updateData.target_value = Number(target_value);
     if (achievement_type) updateData.achievement_type = achievement_type;
 
     // Explicitly check for null vs undefined to allow unsetting reward
