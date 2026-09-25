@@ -118,6 +118,9 @@ export const deleteComment = async (req, res) => {
       where: { id },
     });
 
+    const totalComments = await prisma.comment.count({ where: { user_id } });
+    await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
+
     res.json({ message: "Comment deleted" });
   } catch (err) {
     logError("controllers.deleteComment", err, req);

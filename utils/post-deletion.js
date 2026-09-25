@@ -3,6 +3,7 @@ import { prisma } from "../configs/prisma.js";
 import { extractPublicId } from "./cloudinary.helper.js";
 import { deleteSupabasePdfObject } from "./supabase-storage.js";
 import { logWarn } from "./logger.js";
+import { updateAchievementProgress } from "./achievement.helper.js";
 
 async function destroyAsset(url, resourceType, postId) {
   const publicId = extractPublicId(url, resourceType);
@@ -18,26 +19,38 @@ async function destroyAsset(url, resourceType, postId) {
 }
 
 export async function deletePostPermanently(postId) {
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    select: {
-      id: true,
-      author_id: true,
-      title: true,
-      cover_image: true,
-      content: true,
-      media: {
-        select: {
-          id: true,
-          media_url: true,
-          media_type: true,
-          storage_provider: true,
-          storage_bucket: true,
-          storage_path: true,
+  const [post, affectedLikes, affectedComments] = await Promise.all([
+    prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        id: true,
+        author_id: true,
+        title: true,
+        cover_image: true,
+        content: true,
+        media: {
+          select: {
+            id: true,
+            media_url: true,
+            media_type: true,
+            storage_provider: true,
+            storage_bucket: true,
+            storage_path: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.like.findMany({
+      where: { post_id: postId },
+      select: { user_id: true },
+      distinct: ["user_id"],
+    }),
+    prisma.comment.findMany({
+      where: { post_id: postId },
+      select: { user_id: true },
+      distinct: ["user_id"],
+    }),
+  ]);
   if (!post) return null;
 
   if (post.cover_image) await destroyAsset(post.cover_image, "image", postId);
@@ -89,5 +102,23 @@ export async function deletePostPermanently(postId) {
   }
 
   await prisma.post.delete({ where: { id: postId } });
+
+  const [totalActivePosts, totalPostLikes] = await Promise.all([
+    prisma.post.count({ where: { author_id: post.author_id, post_status: "ACTIVE" } }),
+    prisma.like.count({ where: { post: { author_id: post.author_id } } }),
+  ]);
+  await Promise.all([
+    updateAchievementProgress(post.author_id, "POSTS_CREATED", totalActivePosts),
+    updateAchievementProgress(post.author_id, "POST_LIKES", totalPostLikes),
+    ...affectedLikes.map(async ({ user_id }) => {
+      const totalLikesGiven = await prisma.like.count({ where: { user_id } });
+      await updateAchievementProgress(user_id, "LIKES_GIVEN", totalLikesGiven);
+    }),
+    ...affectedComments.map(async ({ user_id }) => {
+      const totalComments = await prisma.comment.count({ where: { user_id } });
+      await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
+    }),
+  ]);
+
   return post;
 }

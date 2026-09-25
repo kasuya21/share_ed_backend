@@ -1,7 +1,19 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createLikeNotification, removeLikeNotification } from "../utils/notification.helper.js";
-import { incrementAchievementProgress } from "../utils/achievement.helper.js";
+import { updateAchievementProgress } from "../utils/achievement.helper.js";
+
+async function syncLikeAchievements(userId, postAuthorId) {
+  const [likesGiven, postLikesReceived] = await Promise.all([
+    prisma.like.count({ where: { user_id: userId } }),
+    prisma.like.count({ where: { post: { author_id: postAuthorId } } }),
+  ]);
+
+  await Promise.all([
+    updateAchievementProgress(userId, "LIKES_GIVEN", likesGiven),
+    updateAchievementProgress(postAuthorId, "POST_LIKES", postLikesReceived),
+  ]);
+}
 
 export const toggleLike = async (req, res) => {
   try {
@@ -35,6 +47,7 @@ export const toggleLike = async (req, res) => {
         actorId: userId,
         postId,
       });
+      await syncLikeAchievements(userId, post.author_id);
       return res.status(200).json({ success: true, message: "ยกเลิกการถูกใจแล้ว", isLiked: false });
     } else {
       // Like
@@ -52,17 +65,19 @@ export const toggleLike = async (req, res) => {
         throw error;
       }
 
-      // 🔔 แจ้งเจ้าของโพสต์ และ อัปเดต Achievement พร้อมกันแบบ Concurrent เพื่อความเร็วสูงสุด
+      // Keep both sides exact: likes given by the actor and likes received by
+      // the author's posts. Exact totals prevent unlike/like farming.
+      const sideEffects = [syncLikeAchievements(userId, post.author_id)];
       if (post.author_id !== userId) {
-        await Promise.all([
+        sideEffects.push(
           createLikeNotification({
             recipientId: post.author_id,
             actorId: userId,
             postId,
-          }),
-          incrementAchievementProgress(post.author_id, "POST_LIKES", 1),
-        ]);
+          })
+        );
       }
+      await Promise.all(sideEffects);
 
       return res.status(200).json({ success: true, message: "Liked post successfully", isLiked: true });
     }

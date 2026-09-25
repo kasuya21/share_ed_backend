@@ -1239,7 +1239,10 @@ export const updatePost = async (req, res) => {
         )
       );
 
-      // 🏆 อัปเดต Achievement: POSTS_CREATED
+    }
+
+    // Keep post-count achievements exact when publishing or returning a post to draft.
+    if ((updatedPost.post_status === "ACTIVE") !== wasActive) {
       const totalActivePosts = await prisma.post.count({
         where: { author_id: user_id, post_status: "ACTIVE" }
       });
