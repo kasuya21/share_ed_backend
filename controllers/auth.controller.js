@@ -4,6 +4,13 @@ import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
 
+const EMAIL_VERIFICATION_MESSAGE = "หากอีเมลนี้รอการยืนยัน ระบบจะส่งรหัสยืนยันให้คุณ";
+
+function verificationRedirectUrl() {
+  const configured = process.env.EMAIL_VERIFICATION_REDIRECT_URL?.trim();
+  return configured || "https://share-ed.online/verify-email";
+}
+
 // ============================================================
 // POST /api/v1/auth/register
 // สมัครสมาชิกใหม่ (Guest -> Member)
@@ -11,8 +18,10 @@ import { prisma } from "../configs/prisma.js";
 export const registerUser = async (req, res) => {
   try {
     const { email, password, confirmPassword, username, education_level } = req.body || {};
-    if (typeof email !== "string" || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-      || typeof username !== "string" || !username.trim() || username.length > 100
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const normalizedUsername = typeof username === "string" ? username.trim() : "";
+    if (typeof email !== "string" || normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)
+      || typeof username !== "string" || !normalizedUsername || normalizedUsername.length > 100
       || !["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"].includes(education_level)) {
       return res.status(400).json({ success: false, message: "Invalid registration fields" });
     }
@@ -44,7 +53,7 @@ export const registerUser = async (req, res) => {
 
     // 3. ตรวจสอบข้อมูลซ้ำในระบบ (Email และ Username)
     const existingEmail = await prisma.user.findUnique({
-      where: { email }
+      where: { email: normalizedEmail }
     });
     if (existingEmail) {
       return res.status(400).json({ 
@@ -54,7 +63,7 @@ export const registerUser = async (req, res) => {
     }
 
     const existingUsername = await prisma.user.findUnique({
-      where: { username }
+      where: { username: normalizedUsername }
     });
     if (existingUsername) {
       return res.status(400).json({ 
@@ -65,12 +74,14 @@ export const registerUser = async (req, res) => {
 
     // 4. บันทึกลง Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
         data: {
-          username
-        }
+          username: normalizedUsername,
+          education_level,
+        },
+        emailRedirectTo: verificationRedirectUrl(),
       }
     });
 
@@ -88,8 +99,8 @@ export const registerUser = async (req, res) => {
     const dbUser = await prisma.user.create({
       data: {
         id: authUser.id,
-        email,
-        username,
+        email: normalizedEmail,
+        username: normalizedUsername,
         education_level,
         role: "MEMBER",
         status: "ACTIVE"
@@ -98,8 +109,10 @@ export const registerUser = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: "สมัครสมาชิกสำเร็จ",
-      data: dbUser
+      code: authData.session ? "REGISTERED" : "EMAIL_VERIFICATION_REQUIRED",
+      message: authData.session ? "สมัครสมาชิกสำเร็จ" : "สมัครสมาชิกสำเร็จ กรุณายืนยันอีเมล",
+      requires_email_verification: !authData.session,
+      data: dbUser,
     });
 
   } catch (error) {
@@ -107,6 +120,59 @@ export const registerUser = async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       message: "เกิดข้อผิดพลาดในการลงทะเบียน" 
+    });
+  }
+};
+
+// ============================================================
+// POST /api/v1/auth/resend-verification
+// ส่ง OTP ยืนยันอีเมลซ้ำ โดยตอบข้อความทั่วไปเพื่อไม่เปิดเผยบัญชีในระบบ
+// ============================================================
+export const resendVerificationEmail = async (req, res) => {
+  try {
+    const email = typeof req.body?.email === "string"
+      ? req.body.email.trim().toLowerCase()
+      : "";
+
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        code: "INVALID_EMAIL",
+        message: "รูปแบบอีเมลไม่ถูกต้อง",
+      });
+    }
+
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: verificationRedirectUrl() },
+    });
+
+    if (error) {
+      logWarn("auth.verification_resend.provider_rejected", error, req);
+      if (error.status === 429 || /rate|seconds/i.test(error.message || "")) {
+        return res.status(429).json({
+          success: false,
+          code: "VERIFICATION_RATE_LIMITED",
+          message: "กรุณารอสักครู่ก่อนขอรหัสยืนยันใหม่",
+        });
+      }
+
+      // Supabase may reject unknown/already-confirmed addresses. Keep the
+      // response indistinguishable so this endpoint cannot enumerate users.
+    }
+
+    return res.status(200).json({
+      success: true,
+      code: "VERIFICATION_EMAIL_ACCEPTED",
+      message: EMAIL_VERIFICATION_MESSAGE,
+    });
+  } catch (error) {
+    logError("controllers.resendVerificationEmail", error, req);
+    return res.status(500).json({
+      success: false,
+      code: "EMAIL_DELIVERY_FAILED",
+      message: "ไม่สามารถส่งรหัสยืนยันได้ กรุณาลองใหม่ภายหลัง",
     });
   }
 };
@@ -135,6 +201,13 @@ export const loginUser = async (req, res) => {
     // ตรวจสอบสิทธิ์ความปลอดภัย: กรณีผิดพลาดให้แจ้งเตือนความผิดพลาดในลักษณะทั่วไป
     if (error || !data.user || !data.session) {
       logWarn("auth.login.provider_rejected", error, req);
+      if (/email not confirmed/i.test(error?.message || "")) {
+        return res.status(403).json({
+          success: false,
+          code: "EMAIL_NOT_VERIFIED",
+          message: "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ",
+        });
+      }
       return res.status(400).json({ 
         success: false, 
         message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" 

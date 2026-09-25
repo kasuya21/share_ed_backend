@@ -44,7 +44,11 @@ export function validateNewPost(body, files) {
 
   const hasMediaFiles = Boolean(files?.media_files?.length);
   const directMedia = parseJson(body?.media_uploads);
-  const hasDirectMedia = Array.isArray(directMedia) && directMedia.length > 0;
+  const directPdf = parseJson(body?.pdf_uploads || body?.pdf_upload);
+  const hasDirectMedia = (Array.isArray(directMedia) && directMedia.length > 0)
+    || (directMedia && typeof directMedia === "object" && !Array.isArray(directMedia))
+    || (Array.isArray(directPdf) && directPdf.length > 0)
+    || (directPdf && typeof directPdf === "object" && !Array.isArray(directPdf));
 
   if (!isDraft && !hasMediaFiles && !hasDirectMedia) {
     result.errors.media_files = { code: "REQUIRED", message: "กรุณาแนบไฟล์ PDF หรือรูปภาพอย่างน้อย 1 ไฟล์" };

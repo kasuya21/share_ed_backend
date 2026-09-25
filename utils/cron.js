@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { prisma } from '../configs/prisma.js';
 import cloudinary from '../configs/cloudinary.config.js';
+import { cleanupSupabaseUploadSession } from './supabase-storage.js';
 import { logError, logWarn } from './logger.js';
 
 const UPLOAD_SESSION_BATCH_SIZE = 50;
@@ -38,6 +39,9 @@ async function cleanupExpiredUploadSessions() {
           folder: 'root',
         })
       );
+
+      // Clean up orphaned objects in Supabase Storage post-pdfs bucket
+      await cleanupSupabaseUploadSession(session.user_id, session.id);
 
       await prisma.uploadSession.updateMany({
         where: { id: session.id, status: 'PENDING' },

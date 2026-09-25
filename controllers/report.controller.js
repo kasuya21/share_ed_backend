@@ -3,7 +3,7 @@ import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { getIO } from "../configs/socket.js";
 
-const REPORT_THRESHOLD = 10;
+const REPORT_THRESHOLD = 5;
 
 export const reportPost = async (req, res) => {
   try {
