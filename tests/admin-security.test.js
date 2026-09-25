@@ -20,13 +20,15 @@ function mock(t, object, key, implementation) {
 async function createRequest(t, aal = "aal2", sessionOverrides = {}) {
   const now = Math.floor(Date.now() / 1000);
   mock(t, supabase.auth, "getClaims", async () => ({
-    data: { claims: {
-      sub: "admin-1",
-      aal,
-      session_id: "22222222-2222-4222-8222-222222222222",
-      iat: now,
-      exp: now + 3600,
-    } },
+    data: {
+      claims: {
+        sub: "admin-1",
+        aal,
+        session_id: "22222222-2222-4222-8222-222222222222",
+        iat: now,
+        exp: now + 3600,
+      }
+    },
     error: null,
   }));
   mock(t, prisma, "$queryRaw", async () => [{
@@ -48,10 +50,29 @@ async function createRequest(t, aal = "aal2", sessionOverrides = {}) {
   });
 }
 
-test("role changes require an AAL2 Supabase session", async t => {
-  mock(t, prisma.user, "findUnique", async () => ({ id: "admin-1", status: "ACTIVE", role: "ADMIN" }));
+test("role changes require an AAL2 Supabase session when MFA enforcement is enabled", async t => {
+  const previousValue = process.env.REQUIRE_MFA_FOR_ROLE_CHANGES;
+  process.env.REQUIRE_MFA_FOR_ROLE_CHANGES = "true";
+
+  t.after(() => {
+    if (previousValue === undefined) {
+      delete process.env.REQUIRE_MFA_FOR_ROLE_CHANGES;
+    } else {
+      process.env.REQUIRE_MFA_FOR_ROLE_CHANGES = previousValue;
+    }
+  });
+
+  mock(t, prisma.user, "findUnique", async () => ({
+    id: "admin-1",
+    status: "ACTIVE",
+    role: "ADMIN"
+  }));
+
   const request = await createRequest(t, "aal1");
-  const response = await request("/admin/users/member-1/role", { role: "ADMIN" });
+  const response = await request("/admin/users/member-1/role", {
+    role: "ADMIN"
+  });
+
   assert.equal(response.status, 403);
   assert.equal((await response.json()).code, "MFA_REQUIRED");
 });

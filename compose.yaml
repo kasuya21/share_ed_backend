@@ -1,0 +1,10 @@
+services:
+  backend:
+    build:
+      context: .
+    image: share-ed-backend:local
+    env_file:
+      - .env
+    ports:
+      - "5050:5000"
+    restart: unless-stopped

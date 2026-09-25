@@ -38,17 +38,25 @@ function socketRecorder(t) {
   return events;
 }
 
-test("moderator and admin sockets join the protected moderation room", () => {
-  const rooms = [];
-  const socket = {
+test("only admin sockets join the protected admin room", () => {
+  const adminRooms = [];
+  const adminSocket = {
+    data: { userId: "admin-1", role: "ADMIN" },
+    join(room) { adminRooms.push(room); },
+    on() {},
+  };
+  const moderatorRooms = [];
+  const moderatorSocket = {
     data: { userId: "moderator-1", role: "MODERATOR" },
-    join(room) { rooms.push(room); },
+    join(room) { moderatorRooms.push(room); },
     on() {},
   };
 
-  joinOwnRoom(socket);
+  joinOwnRoom(adminSocket);
+  joinOwnRoom(moderatorSocket);
 
-  assert.deepEqual(rooms, ["user:moderator-1", "role:moderation"]);
+  assert.deepEqual(adminRooms, ["user:admin-1", "role:admin"]);
+  assert.deepEqual(moderatorRooms, ["user:moderator-1"]);
 });
 
 test("a new report broadcasts the complete updated post to reviewers", async (t) => {
@@ -87,7 +95,7 @@ test("a new report broadcasts the complete updated post to reviewers", async (t)
   assert.equal(response.status, 201);
   const reportEvent = events.find((entry) => entry.event === "report_created");
   assert.ok(reportEvent);
-  assert.equal(reportEvent.room, "role:moderation");
+  assert.equal(reportEvent.room, "role:admin");
   assert.deepEqual(reportEvent.payload.post, reportedPost);
 });
 
@@ -116,7 +124,7 @@ test("a moderation decision broadcasts an immediate badge update", async (t) => 
   assert.match(ownerNotification.payload.message, /Reported post/);
   const moderationEvent = events.find((entry) => entry.event === "report_reviewed");
   assert.ok(moderationEvent);
-  assert.equal(moderationEvent.room, "role:moderation");
+  assert.equal(moderationEvent.room, "role:admin");
   assert.deepEqual(moderationEvent.payload, { postId: "post-1", action: "SUSPEND" });
 });
 

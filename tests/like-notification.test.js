@@ -161,6 +161,16 @@ test("toggle Like, Unlike and re-Like keeps database and socket state aligned", 
   ]);
   assert.equal(events[0].payload.notificationId, undefined);
   assert.notEqual(events[0].payload.id, events[2].payload.id);
-  assert.equal(likeCount.mock.callCount(), 0);
-  assert.deepEqual(achievementFind.mock.calls[0].arguments[0].where, { achievement_type: "POST_LIKES" });
+  assert.equal(likeCount.mock.callCount(), 6);
+  const achievementTypes = achievementFind.mock.calls.map(
+    call => call.arguments[0].where.achievement_type
+  );
+  assert.deepEqual(achievementTypes.sort(), [
+    "LIKES_GIVEN",
+    "LIKES_GIVEN",
+    "LIKES_GIVEN",
+    "POST_LIKES",
+    "POST_LIKES",
+    "POST_LIKES",
+  ].sort());
 });

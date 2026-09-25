@@ -126,7 +126,7 @@ test("auth me loads the current frame from the database", async t => {
   assert.deepEqual(result.body.current_frame, user.current_frame);
 });
 
-test("liking a post does not recount all author likes across all posts", async t => {
+test("liking a post synchronizes exact achievement totals for both users", async t => {
   const { toggleLike } = await import("../controllers/like.controller.js");
   replace(t, prisma.post, "findUnique", async () => ({ id: "post-1", author_id: "author-1", post_status: "ACTIVE" }));
   replace(t, prisma.like, "findUnique", async () => null);
@@ -140,8 +140,11 @@ test("liking a post does not recount all author likes across all posts", async t
   await toggleLike({ params: { postId: "post-1" }, user: { id: "user-1" } }, result.res);
 
   assert.equal(result.body.isLiked, true);
-  assert.equal(likeCount.mock.callCount(), 0);
-  assert.deepEqual(achievementFind.mock.calls[0].arguments[0].where, { achievement_type: "POST_LIKES" });
+  assert.equal(likeCount.mock.callCount(), 2);
+  const achievementTypes = achievementFind.mock.calls.map(
+    call => call.arguments[0].where.achievement_type
+  );
+  assert.deepEqual(achievementTypes.sort(), ["LIKES_GIVEN", "POST_LIKES"].sort());
 });
 
 test("equipping a frame rejects an inactive unlocked item", async t => {
