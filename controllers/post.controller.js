@@ -28,9 +28,9 @@ import {
 } from "../utils/direct-upload.js";
 
 // In-Memory Caches for heavy home page queries
-export const trendingPostsCache = new MemoryCache(45 * 1000);
-export const mostLikedPostsCache = new MemoryCache(45 * 1000);
-export const platformStatsCache = new MemoryCache(60 * 1000);
+export const trendingPostsCache = new MemoryCache(2 * 60 * 1000);
+export const mostLikedPostsCache = new MemoryCache(60 * 1000);
+export const platformStatsCache = new MemoryCache(5 * 60 * 1000);
 
 const AUTHOR_FRAME_SELECT = {
   id: true,
@@ -59,8 +59,9 @@ async function findCreatedPost(authorId, idempotencyKey) {
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
+const POST_VIEW_RECENCY_REFRESH_MS = 15 * 60 * 1000;
 const TRENDING_WINDOWS_MS = Object.freeze({
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -89,9 +90,14 @@ async function mapWithConcurrency(items, concurrency, operation) {
 export async function recordPostView(userId, postId, viewedAt = new Date()) {
   const existingView = await prisma.postView.findUnique({
     where: { user_id_post_id: { user_id: userId, post_id: postId } },
-    select: { id: true },
+    select: { id: true, viewed_at: true },
   });
   if (existingView) {
+    const lastViewedAt = existingView.viewed_at?.getTime?.();
+    if (Number.isFinite(lastViewedAt)
+      && viewedAt.getTime() - lastViewedAt < POST_VIEW_RECENCY_REFRESH_MS) {
+      return { created: false };
+    }
     await prisma.postView.update({
       where: { id: existingView.id },
       data: { viewed_at: viewedAt },
@@ -434,12 +440,15 @@ export const getPostById = async (req, res) => {
               }
             }
           },
-          orderBy: { created_at: "desc" }
+          orderBy: { created_at: "desc" },
+          take: 50,
         },
         likes: {
+          where: { user_id: userId },
           select: {
             user_id: true
-          }
+          },
+          take: 1,
         },
         _count: {
           select: {
