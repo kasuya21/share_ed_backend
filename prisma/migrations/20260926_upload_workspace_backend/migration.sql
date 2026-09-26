@@ -19,7 +19,7 @@ ALTER TABLE "upload_sessions"
     ADD COLUMN IF NOT EXISTS "reserved_bytes" INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS "last_activity_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     ALTER COLUMN "requested_types" DROP NOT NULL,
-    ALTER COLUMN "status" SET DEFAULT 'OPEN';
+    ALTER COLUMN "status" SET DEFAULT 'PENDING';
 
 -- CreateIndexes on upload_sessions
 CREATE UNIQUE INDEX IF NOT EXISTS "upload_sessions_user_id_draft_id_key" ON "upload_sessions"("user_id", "draft_id");
@@ -66,6 +66,43 @@ BEGIN
             FOREIGN KEY ("upload_session_id") REFERENCES "upload_sessions"("upload_session_id") ON DELETE CASCADE ON UPDATE CASCADE;
     END IF;
 END $$;
+
+-- Serialize quota checks per session so concurrent sign requests cannot exceed
+-- 15 active files or 50 MiB in total. Text comparison avoids enum-version casts.
+CREATE OR REPLACE FUNCTION enforce_upload_asset_quota()
+RETURNS TRIGGER AS $$
+DECLARE
+    active_count INTEGER;
+    active_bytes BIGINT;
+BEGIN
+    PERFORM 1 FROM "upload_sessions"
+    WHERE "upload_session_id" = NEW."upload_session_id"
+    FOR UPDATE;
+
+    SELECT COUNT(*), COALESCE(SUM("file_size"), 0)
+    INTO active_count, active_bytes
+    FROM "upload_assets"
+    WHERE "upload_session_id" = NEW."upload_session_id"
+      AND "upload_asset_id" <> NEW."upload_asset_id"
+      AND "status"::text NOT IN ('FAILED', 'DELETED', 'DETACHED', 'DELETE_PENDING');
+
+    IF NEW."status"::text NOT IN ('FAILED', 'DELETED', 'DETACHED', 'DELETE_PENDING') THEN
+        active_count := active_count + 1;
+        active_bytes := active_bytes + COALESCE(NEW."file_size", 0);
+    END IF;
+
+    IF active_count > 15 OR active_bytes > 52428800 THEN
+        RAISE EXCEPTION 'upload_asset_quota_exceeded' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS "upload_assets_enforce_quota" ON "upload_assets";
+CREATE TRIGGER "upload_assets_enforce_quota"
+BEFORE INSERT OR UPDATE OF "status", "file_size", "upload_session_id"
+ON "upload_assets"
+FOR EACH ROW EXECUTE FUNCTION enforce_upload_asset_quota();
 
 -- CreateTable background_jobs
 CREATE TABLE IF NOT EXISTS "background_jobs" (

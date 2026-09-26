@@ -260,7 +260,7 @@ model UploadSession {
   // ลบ Post -> เก็บ Session ไว้ แต่ตัด relation
   post Post? @relation(fields: [post_id], references: [id], onDelete: SetNull)
 
-  status UploadSessionStatus @default(OPEN)
+  status UploadSessionStatus @default(PENDING)
 
   requested_types Json?
   verified_assets Json?

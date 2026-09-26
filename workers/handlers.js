@@ -33,28 +33,16 @@ export async function handleCleanupUploadAsset(payload) {
 
   // Delete from provider
   if (asset.provider === "CLOUDINARY" && asset.public_id) {
-    try {
-      const resourceType = asset.asset_type === "PDF" ? "raw" : "image";
-      await cloudinary.uploader.destroy(asset.public_id, {
-        resource_type: resourceType,
-        type: "upload",
-      });
-    } catch (err) {
-      // 404 / not found is considered success
-      logWarn("worker.cleanup_asset.cloudinary_warning", err, undefined, {
-        assetId,
-        publicId: asset.public_id,
-      });
+    const resourceType = asset.asset_type === "PDF" ? "raw" : "image";
+    const result = await cloudinary.uploader.destroy(asset.public_id, {
+      resource_type: resourceType,
+      type: "upload",
+    });
+    if (!result || !["ok", "not found"].includes(result.result)) {
+      throw new Error(`Cloudinary cleanup failed for asset ${assetId}`);
     }
   } else if (asset.provider === "SUPABASE" && asset.storage_path) {
-    try {
-      await deleteSupabasePdfObject(asset.bucket, asset.storage_path);
-    } catch (err) {
-      logWarn("worker.cleanup_asset.supabase_warning", err, undefined, {
-        assetId,
-        path: asset.storage_path,
-      });
-    }
+    await deleteSupabasePdfObject(asset.bucket, asset.storage_path, { throwOnError: true });
   }
 
   await prisma.uploadAsset.update({
@@ -119,26 +107,18 @@ export async function handleCleanupUploadSession(payload) {
 
   // 2. Clean Cloudinary session folder
   const cloudinaryPrefix = `share-ed/users/${session.user_id}/upload-sessions/${session.id}`;
-  try {
-    await Promise.allSettled([
-      cloudinary.api.delete_resources_by_prefix(cloudinaryPrefix, { resource_type: "image", type: "upload" }),
-      cloudinary.api.delete_resources_by_prefix(cloudinaryPrefix, { resource_type: "raw", type: "upload" }),
-    ]);
+  await Promise.all([
+    cloudinary.api.delete_resources_by_prefix(cloudinaryPrefix, { resource_type: "image", type: "upload" }),
+    cloudinary.api.delete_resources_by_prefix(cloudinaryPrefix, { resource_type: "raw", type: "upload" }),
+  ]);
 
-    for (const folder of ["covers", "media", "content", "pdfs"]) {
-      await cloudinary.api.delete_folder(`${cloudinaryPrefix}/${folder}`).catch(() => {});
-    }
-    await cloudinary.api.delete_folder(cloudinaryPrefix).catch(() => {});
-  } catch (err) {
-    logWarn("worker.cleanup_session.cloudinary_folder_warning", err, undefined, { uploadSessionId });
+  for (const folder of ["covers", "media", "content", "pdfs"]) {
+    await cloudinary.api.delete_folder(`${cloudinaryPrefix}/${folder}`).catch(() => {});
   }
+  await cloudinary.api.delete_folder(cloudinaryPrefix).catch(() => {});
 
   // 3. Clean Supabase session folder
-  try {
-    await cleanupSupabaseUploadSession(session.user_id, session.id);
-  } catch (err) {
-    logWarn("worker.cleanup_session.supabase_folder_warning", err, undefined, { uploadSessionId });
-  }
+  await cleanupSupabaseUploadSession(session.user_id, session.id);
 
   // 4. Mark session CLEANED
   await prisma.uploadSession.update({
@@ -206,7 +186,10 @@ export async function handlePostAchievementUpdate(payload) {
   if (!authorId) return;
 
   try {
-    await updateAchievementProgress(authorId, "POST_COUNT", 1);
+    const postCount = await prisma.post.count({
+      where: { author_id: authorId, post_status: "ACTIVE" },
+    });
+    await updateAchievementProgress(authorId, "POSTS_CREATED", postCount);
   } catch (err) {
     logError("worker.post_achievement_update_error", err, undefined, { authorId, postId });
     throw err;

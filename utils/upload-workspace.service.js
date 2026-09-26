@@ -98,17 +98,31 @@ export async function createOrReuseUploadSession({ userId, draftId }) {
   }
 
   // Create new session
-  const created = await prisma.uploadSession.create({
-    data: {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      draft_id: draftId,
-      status: "OPEN",
-      expires_at: expiresAt,
-      last_activity_at: now,
-      reserved_bytes: 0,
-    },
-  });
+  let created;
+  try {
+    created = await prisma.uploadSession.create({
+      data: {
+        id: crypto.randomUUID(),
+        user_id: userId,
+        draft_id: draftId,
+        status: "OPEN",
+        expires_at: expiresAt,
+        last_activity_at: now,
+        reserved_bytes: 0,
+      },
+    });
+  } catch (error) {
+    if (error?.code !== "P2002") throw error;
+    created = await prisma.uploadSession.findUnique({
+      where: {
+        user_id_draft_id: {
+          user_id: userId,
+          draft_id: draftId,
+        },
+      },
+    });
+    if (!created) throw error;
+  }
 
   return formatSessionResponse(created);
 }
@@ -182,7 +196,7 @@ export async function signUploadFile({
   // 1. Idempotency Check: if (session_id, client_file_id) already exists, return existing signed info
   const existingAsset = session.assets.find(a => a.client_file_id === clientFileId);
   if (existingAsset) {
-    return buildSignResponse(existingAsset, userId, sessionId);
+    return await buildSignResponse(existingAsset, userId, sessionId);
   }
 
   // 2. Validate Asset Type
@@ -341,27 +355,54 @@ export async function signUploadFile({
   }
 
   // 6. Save UploadAsset record with status SIGNED
-  const newAsset = await prisma.uploadAsset.create({
-    data: {
-      id: assetId,
-      upload_session_id: sessionId,
-      client_file_id: clientFileId,
-      provider,
-      asset_type: upperType,
-      status: "SIGNED",
-      bucket,
-      storage_path: storagePath,
-      public_id: publicId,
-      original_name: safeOriginalName,
-      mime_type: safeContentType || (upperType === "PDF" ? "application/pdf" : "image/jpeg"),
-      file_size: parsedSize,
-    },
-  });
+  let newAsset;
+  try {
+    newAsset = await prisma.uploadAsset.create({
+      data: {
+        id: assetId,
+        upload_session_id: sessionId,
+        client_file_id: clientFileId,
+        provider,
+        asset_type: upperType,
+        status: "SIGNED",
+        bucket,
+        storage_path: storagePath,
+        public_id: publicId,
+        original_name: safeOriginalName,
+        mime_type: safeContentType || (upperType === "PDF" ? "application/pdf" : "image/jpeg"),
+        file_size: parsedSize,
+      },
+    });
+  } catch (error) {
+    const databaseMessage = `${error?.message || ""} ${error?.meta?.message || ""}`;
+    if (databaseMessage.includes("upload_asset_quota_exceeded")) {
+      throw new UploadWorkspaceError(
+        UPLOAD_ERROR_CODES.TOTAL_UPLOAD_TOO_LARGE,
+        "จำนวนหรือขนาดไฟล์รวมเกินกำหนด",
+        400
+      );
+    }
+    if (error?.code !== "P2002") throw error;
+    const winner = await prisma.uploadAsset.findUnique({
+      where: {
+        upload_session_id_client_file_id: {
+          upload_session_id: sessionId,
+          client_file_id: clientFileId,
+        },
+      },
+    });
+    if (!winner) throw error;
+    return await buildSignResponse(winner, userId, sessionId);
+  }
 
   // Touch session
   await prisma.uploadSession.update({
     where: { id: sessionId },
-    data: { last_activity_at: now },
+    data: {
+      last_activity_at: now,
+      expires_at: new Date(now.getTime() + UPLOAD_WORKSPACE_LIMITS.SESSION_TTL_MS),
+      reserved_bytes: currentTotalBytes + parsedSize,
+    },
   });
 
   return {
@@ -376,12 +417,12 @@ export async function signUploadFile({
   };
 }
 
-function buildSignResponse(asset, userId, sessionId) {
+async function buildSignResponse(asset, userId, sessionId) {
   const safeUserId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "_");
   if (asset.provider === "CLOUDINARY") {
     const subfolder = asset.asset_type === "COVER" ? "covers" : "media";
     const folder = `share-ed/users/${safeUserId}/upload-sessions/${sessionId}/${subfolder}`;
-    const timestamp = Math.round(asset.created_at.getTime() / 1000);
+    const timestamp = Math.round(Date.now() / 1000);
     const signParams = {
       folder,
       public_id: asset.public_id,
@@ -414,7 +455,18 @@ function buildSignResponse(asset, userId, sessionId) {
     };
   }
 
-  // Supabase PDF
+  // Supabase PDF: issue a fresh token because signed upload tokens expire.
+  const bucket = asset.bucket || getSupabasePdfBucket();
+  const { data: uploadData, error } = await supabaseAdmin.storage
+    .from(bucket)
+    .createSignedUploadUrl(asset.storage_path);
+  if (error || !uploadData) {
+    throw new UploadWorkspaceError(
+      UPLOAD_ERROR_CODES.STORAGE_PROVIDER_ERROR,
+      "ไม่สามารถสร้าง URL สำหรับอัปโหลด PDF ได้",
+      500
+    );
+  }
   return {
     success: true,
     data: {
@@ -423,8 +475,10 @@ function buildSignResponse(asset, userId, sessionId) {
       asset_type: asset.asset_type,
       status: asset.status,
       provider: "SUPABASE",
-      bucket: asset.bucket || getSupabasePdfBucket(),
+      bucket,
       path: asset.storage_path,
+      token: uploadData.token,
+      signedUploadUrl: uploadData.signedUrl,
       max_bytes: UPLOAD_WORKSPACE_LIMITS.MAX_PDF_BYTES,
     },
   };
@@ -473,6 +527,17 @@ export async function completeAndVerifyAssetCore({
     return formatVerifiedAssetResponse(asset);
   }
 
+  if (
+    asset.upload_session.status &&
+    (asset.upload_session.status !== "OPEN" || asset.upload_session.expires_at <= new Date())
+  ) {
+    throw new UploadWorkspaceError(
+      UPLOAD_ERROR_CODES.UPLOAD_SESSION_EXPIRED,
+      "upload session หมดอายุหรือไม่อยู่ในสถานะเปิดใช้งาน",
+      410
+    );
+  }
+
   // Atomic transition: SIGNED -> VERIFYING
   const transition = await prisma.uploadAsset.updateMany({
     where: {
@@ -507,7 +572,7 @@ export async function completeAndVerifyAssetCore({
 
       // Expected prefix
       const expectedFolder = `share-ed/users/${safeUserId}/upload-sessions/${sessionId}`;
-      if (!public_id.startsWith(`${expectedFolder}/`)) {
+      if ((asset.public_id && public_id !== asset.public_id) || !public_id.startsWith(`${expectedFolder}/`)) {
         throw new UploadWorkspaceError(
           UPLOAD_ERROR_CODES.UPLOAD_SESSION_FORBIDDEN,
           "ไฟล์ไม่ได้อยู่ในโฟลเดอร์ของ upload session นี้",
@@ -614,7 +679,7 @@ export async function completeAndVerifyAssetCore({
       }
 
       const targetPath = path || asset.storage_path;
-      if (!isAllowedPdfPath(targetPath, userId, sessionId)) {
+      if (targetPath !== asset.storage_path || !isAllowedPdfPath(targetPath, userId, sessionId)) {
         throw new UploadWorkspaceError(
           UPLOAD_ERROR_CODES.UPLOAD_SESSION_FORBIDDEN,
           "เส้นทางไฟล์ PDF ไม่ถูกต้องหรือไม่อยู่ในพื้นที่ของผู้ใช้",
@@ -808,6 +873,7 @@ export async function getUploadSessionStatus({ userId, sessionId }) {
       original_name: a.original_name,
       file_size: a.file_size,
       verification_error: a.verification_error || null,
+      secure_url: a.provider === "CLOUDINARY" ? a.secure_url : null,
     })),
   };
 }
@@ -864,6 +930,8 @@ export async function deleteUploadAsset({ userId, sessionId, assetId }) {
   await enqueueJob(JOB_TYPES.CLEANUP_UPLOAD_ASSET, {
     assetId: asset.id,
     uploadSessionId: sessionId,
+  }, {
+    availableAt: new Date(Date.now() + 60_000),
   }).catch(err => {
     logWarn("upload_workspace.enqueue_asset_cleanup_failed", err, undefined, { assetId });
   });
