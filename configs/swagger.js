@@ -866,7 +866,7 @@ export const swaggerDocument = {
                       "type": "string",
                       "format": "binary"
                     },
-                    "description": "ไฟล์แนบ (รูปภาพหรือ PDF, อัปโหลดได้สูงสุด 15 ไฟล์)"
+                    "description": "ไฟล์แนบ (รูปภาพสูงสุด 5 ไฟล์ และ PDF สูงสุด 1 ไฟล์)"
                   }
                 }
               }
