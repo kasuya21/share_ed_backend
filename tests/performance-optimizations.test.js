@@ -255,8 +255,8 @@ test("batch upload signatures create an expiring session and scope every upload 
 test("trending ranks unique viewers inside the requested recent window", async t => {
   trendingPostsCache.clear();
   const groupBy = replace(t, prisma.postView, "groupBy", async () => [
-    { post_id: "post-2", _count: { post_id: 7 } },
-    { post_id: "post-1", _count: { post_id: 4 } },
+    { post_id: "post-2", _count: { post_id: 7 }, _max: { viewed_at: new Date("2026-09-26T11:00:00.000Z") } },
+    { post_id: "post-1", _count: { post_id: 4 }, _max: { viewed_at: new Date("2026-09-26T10:00:00.000Z") } },
   ]);
   const findMany = replace(t, prisma.post, "findMany", async () => [
     { id: "post-1", title: "One" },
@@ -271,11 +271,18 @@ test("trending ranks unique viewers inside the requested recent window", async t
   assert.equal(query.take, 10);
   assert.equal(query.where.post.education_level, "UNIVERSITY");
   assert.ok(query.where.viewed_at.gte.getTime() >= before);
+  assert.deepEqual(query._max, { viewed_at: true });
+  assert.deepEqual(query.orderBy, [
+    { _count: { post_id: "desc" } },
+    { _max: { viewed_at: "desc" } },
+    { post_id: "asc" },
+  ]);
   assert.deepEqual(findMany.mock.calls[0].arguments[0].where.id.in, ["post-2", "post-1"]);
   assert.deepEqual(result.body.data.map(post => [post.id, post.recent_view_count]), [
     ["post-2", 7],
     ["post-1", 4],
   ]);
+  assert.equal(result.body.data[0].latest_viewed_at.toISOString(), "2026-09-26T11:00:00.000Z");
   assert.equal(result.body.meta.window, "24h");
   assert.equal(result.body.meta.fallback, null);
 });
@@ -300,9 +307,13 @@ test("trending falls back to latest active posts when the window has no views", 
   await getTrendingPosts({ query: { window: "7d", limit: "5" } }, result.res);
 
   const query = findMany.mock.calls[0].arguments[0];
-  assert.deepEqual(query.orderBy, { created_at: "desc" });
+  assert.deepEqual(query.orderBy, [
+    { created_at: "desc" },
+    { id: "asc" },
+  ]);
   assert.equal(query.take, 5);
   assert.equal(result.body.data[0].recent_view_count, 0);
+  assert.equal(result.body.data[0].latest_viewed_at, null);
   assert.equal(result.body.meta.fallback, "latest_posts");
 });
 
