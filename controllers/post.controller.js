@@ -26,6 +26,14 @@ import {
   verifyStoredDirectUpload,
   validateDirectUploadList,
 } from "../utils/direct-upload.js";
+import {
+  UPLOAD_WORKSPACE_LIMITS,
+  UPLOAD_ERROR_CODES,
+  UPLOAD_WORKSPACE_V2_ENABLED,
+} from "../configs/upload-workspace.constants.js";
+import { UploadWorkspaceError } from "../utils/upload-workspace.service.js";
+import { enqueueJob, JOB_TYPES } from "../utils/job-queue.js";
+
 
 // In-Memory Caches for heavy home page queries
 export const trendingPostsCache = new MemoryCache(2 * 60 * 1000);
@@ -520,6 +528,7 @@ export const getPostById = async (req, res) => {
 // สร้างและเผยแพร่โพสต์ใหม่ (หรือเซฟดราฟท์)
 // ============================================================
 export const createPost = async (req, res) => {
+  const startedCreatePost = performance.now();
   let stage = "validate";
   const uploadedSupabasePaths = [];
   try {
@@ -529,6 +538,8 @@ export const createPost = async (req, res) => {
       tags,
       upload_session_id: uploadSessionId,
       idempotency_key: idempotencyKey,
+      cover_asset_id: coverAssetId,
+      media_asset_ids: mediaAssetIds,
     } = req.body || {};
     const validation = validateNewPost(req.body, req.files);
     const { title, summary, education_level } = validation.values;
@@ -581,6 +592,233 @@ export const createPost = async (req, res) => {
       });
     }
     category_id = category?.id || null;
+
+    // ─── Upload Workspace V2 Flow ───
+    const isWorkspaceV2 = Boolean(
+      uploadSessionId &&
+      (coverAssetId || (Array.isArray(mediaAssetIds) && mediaAssetIds.length > 0)) &&
+      UPLOAD_WORKSPACE_V2_ENABLED()
+    );
+
+    if (isWorkspaceV2) {
+      stage = "workspace_v2_post_create";
+      const startedTx = performance.now();
+
+      let parsedTags = tags;
+      if (typeof tags === "string") {
+        try {
+          parsedTags = JSON.parse(tags);
+        } catch {
+          parsedTags = tags.split(",").map(t => t.trim()).filter(Boolean);
+        }
+      }
+      const postTagConnects = await preparePostTags(parsedTags);
+
+      const post = await prisma.$transaction(async transaction => {
+        // 1. Lock and verify session
+        const session = await transaction.uploadSession.findUnique({
+          where: { id: uploadSessionId },
+        });
+        if (!session || session.user_id !== author_id) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.UPLOAD_SESSION_FORBIDDEN,
+            "upload session ไม่ใช่ของผู้ใช้งาน",
+            403
+          );
+        }
+        if (session.status !== "OPEN" || session.expires_at <= new Date()) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.UPLOAD_SESSION_EXPIRED,
+            "upload session หมดอายุหรือถูกใช้แล้ว",
+            410
+          );
+        }
+
+        // 2. Validate assets
+        const allAssetIds = [];
+        if (coverAssetId) allAssetIds.push(coverAssetId);
+        if (Array.isArray(mediaAssetIds)) allAssetIds.push(...mediaAssetIds);
+
+        const uniqueSet = new Set(allAssetIds);
+        if (uniqueSet.size !== allAssetIds.length) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.UPLOAD_ASSET_CONFLICT,
+            "ห้ามระบุ asset ID ซ้ำกัน",
+            400
+          );
+        }
+
+        if (Array.isArray(mediaAssetIds) && mediaAssetIds.length > UPLOAD_WORKSPACE_LIMITS.MAX_FILES) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.TOTAL_UPLOAD_TOO_LARGE,
+            `แนบไฟล์ได้สูงสุด ${UPLOAD_WORKSPACE_LIMITS.MAX_FILES} ไฟล์`,
+            400
+          );
+        }
+
+        const dbAssets = await transaction.uploadAsset.findMany({
+          where: { id: { in: allAssetIds } },
+        });
+
+        if (dbAssets.length !== allAssetIds.length) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.UPLOAD_ASSET_NOT_FOUND,
+            "ไม่พบ asset ที่ระบุใน upload session",
+            404
+          );
+        }
+
+        for (const asset of dbAssets) {
+          if (asset.upload_session_id !== uploadSessionId) {
+            throw new UploadWorkspaceError(
+              UPLOAD_ERROR_CODES.UPLOAD_SESSION_FORBIDDEN,
+              "Asset ไม่ได้อยู่ใน upload session เดียวกัน",
+              403
+            );
+          }
+          if (asset.status !== "VERIFIED") {
+            throw new UploadWorkspaceError(
+              UPLOAD_ERROR_CODES.UPLOAD_VERIFICATION_FAILED,
+              `ไฟล์ ${asset.original_name || asset.id} ยังไม่ได้รับการตรวจสอบ (สถานะ: ${asset.status})`,
+              400
+            );
+          }
+        }
+
+        const totalBytes = dbAssets.reduce((sum, a) => sum + (Number(a.file_size) || 0), 0);
+        if (totalBytes > UPLOAD_WORKSPACE_LIMITS.MAX_TOTAL_BYTES) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.TOTAL_UPLOAD_TOO_LARGE,
+            `ขนาดไฟล์รวมเกิน ${Math.round(UPLOAD_WORKSPACE_LIMITS.MAX_TOTAL_BYTES / (1024 * 1024))} MB`,
+            400
+          );
+        }
+
+        let verifiedCoverUrl = null;
+        if (coverAssetId) {
+          const coverAsset = dbAssets.find(a => a.id === coverAssetId);
+          if (!coverAsset || !["COVER", "IMAGE"].includes(coverAsset.asset_type)) {
+            throw new UploadWorkspaceError(
+              UPLOAD_ERROR_CODES.INVALID_IMAGE,
+              "ไฟล์หน้าปกไม่ถูกต้อง",
+              400
+            );
+          }
+          verifiedCoverUrl = coverAsset.secure_url;
+        }
+
+        const mediaList = (mediaAssetIds || []).map(id => dbAssets.find(a => a.id === id));
+        const mediaData = mediaList.map(asset => {
+          if (asset.provider === "SUPABASE") {
+            return {
+              storage_provider: "SUPABASE",
+              storage_bucket: asset.bucket || getSupabasePdfBucket(),
+              storage_path: asset.storage_path,
+              file_size: asset.file_size,
+              original_name: asset.original_name,
+              media_type: "PDF",
+              media_url: null,
+            };
+          } else {
+            return {
+              storage_provider: "CLOUDINARY",
+              media_url: asset.secure_url,
+              media_type: asset.asset_type === "PDF" ? "PDF" : "IMAGE",
+              original_name: asset.original_name,
+              file_size: asset.file_size,
+            };
+          }
+        });
+
+        const finalStatus = post_status === "ACTIVE" ? "ACTIVE" : "DRAFT";
+        const postId = crypto.randomUUID();
+
+        const createdPost = await transaction.post.create({
+          data: {
+            id: postId,
+            title,
+            summary: summary || "",
+            content,
+            education_level,
+            author_id,
+            category_id: category_id || null,
+            post_status: finalStatus,
+            cover_image: verifiedCoverUrl,
+            idempotency_key: idempotencyKey || null,
+            tags: {
+              create: postTagConnects,
+            },
+            media: {
+              create: mediaData,
+            },
+          },
+          include: POST_CREATE_INCLUDE,
+        });
+
+        if (allAssetIds.length > 0) {
+          await transaction.uploadAsset.updateMany({
+            where: { id: { in: allAssetIds } },
+            data: {
+              status: "ATTACHED",
+              attached_at: new Date(),
+            },
+          });
+        }
+
+        const committed = await transaction.uploadSession.updateMany({
+          where: {
+            id: uploadSessionId,
+            user_id: author_id,
+            status: "OPEN",
+          },
+          data: {
+            status: "COMMITTED",
+            post_id: createdPost.id,
+          },
+        });
+
+        if (committed.count !== 1) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.UPLOAD_SESSION_EXPIRED,
+            "upload session ถูกใช้แล้วหรือหมดอายุ",
+            410
+          );
+        }
+
+        return createdPost;
+      });
+
+      const txDuration = Math.round(performance.now() - startedTx);
+      const totalDuration = Math.round(performance.now() - startedCreatePost);
+      res.setHeader(
+        "Server-Timing",
+        `create_post_transaction;dur=${txDuration}, create_post_total;dur=${totalDuration}`
+      );
+
+      if (post.post_status === "ACTIVE") {
+        platformStatsCache.clear();
+        trendingPostsCache.clear();
+        mostLikedPostsCache.clear();
+
+        enqueueJob(JOB_TYPES.POST_PUBLISHED_NOTIFICATION, {
+          postId: post.id,
+          authorId: author_id,
+          title: post.title,
+        }).catch(() => {});
+
+        enqueueJob(JOB_TYPES.POST_ACHIEVEMENT_UPDATE, {
+          authorId: author_id,
+          postId: post.id,
+        }).catch(() => {});
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: "โพสต์ถูกสร้างสำเร็จแล้ว",
+        data: post,
+      });
+    }
+
     const coverFiles = req.files?.cover_image;
     const mediaFiles = req.files?.media_files;
 
@@ -914,6 +1152,14 @@ export const createPost = async (req, res) => {
     }
     if (uploadedSupabasePaths.length > 0) {
       await cleanupUnattachedSupabasePaths(uploadedSupabasePaths);
+    }
+    if (error instanceof UploadWorkspaceError) {
+      logWarn("post.create.upload_workspace_rejected", error, req, { stage, code: error.code });
+      return res.status(error.status).json({
+        success: false,
+        code: error.code,
+        message: error.message,
+      });
     }
     if (error instanceof SupabasePdfError) {
       return res.status(error.status).json({

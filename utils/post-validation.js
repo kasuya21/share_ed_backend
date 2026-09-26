@@ -35,8 +35,9 @@ export function validateNewPost(body, files) {
   const hasCoverFile = Boolean(files?.cover_image?.length);
   const directCover = parseJson(body?.cover_upload);
   const hasDirectCover = Boolean(directCover && typeof directCover === "object" && !Array.isArray(directCover));
+  const hasCoverAsset = Boolean(body?.cover_asset_id && typeof body.cover_asset_id === "string");
 
-  if (!isDraft && !hasCoverFile && !hasDirectCover) {
+  if (!isDraft && !hasCoverFile && !hasDirectCover && !hasCoverAsset) {
     result.errors.cover_image = { code: "REQUIRED", message: "กรุณาอัปโหลดรูปปก" };
   } else if (hasCoverFile && (files.cover_image.length !== 1 || !POST_IMAGE_TYPES.includes(files.cover_image[0].mimetype))) {
     result.errors.cover_image = { code: "INVALID_TYPE", message: "รูปปกต้องเป็นรูปภาพ JPG, PNG, APNG หรือ WebP จำนวน 1 ไฟล์" };
@@ -49,8 +50,9 @@ export function validateNewPost(body, files) {
     || (directMedia && typeof directMedia === "object" && !Array.isArray(directMedia))
     || (Array.isArray(directPdf) && directPdf.length > 0)
     || (directPdf && typeof directPdf === "object" && !Array.isArray(directPdf));
+  const hasMediaAssets = Array.isArray(body?.media_asset_ids) && body.media_asset_ids.length > 0;
 
-  if (!isDraft && !hasMediaFiles && !hasDirectMedia) {
+  if (!isDraft && !hasMediaFiles && !hasDirectMedia && !hasMediaAssets) {
     result.errors.media_files = { code: "REQUIRED", message: "กรุณาแนบไฟล์ PDF หรือรูปภาพอย่างน้อย 1 ไฟล์" };
   } else if (hasMediaFiles && files.media_files.some(file => !POST_MEDIA_TYPES.includes(file.mimetype))) {
     result.errors.media_files = { code: "INVALID_TYPE", message: "ไฟล์แนบต้องเป็น PDF หรือรูปภาพ JPG, PNG, APNG, WebP เท่านั้น" };

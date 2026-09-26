@@ -78,11 +78,12 @@ function write(level, event, error, req, context = {}) {
     if (typeof value === "string") record[key] = redact(value, request);
     else if (typeof value === "number" || typeof value === "boolean") record[key] = value;
   }
-  console[level === "error" ? "error" : "warn"](JSON.stringify(record));
+  console[level === "error" ? "error" : level === "warn" ? "warn" : "log"](JSON.stringify(record));
 }
 
 export const logError = (event, error, req, context) => write("error", event, error, req, context);
 export const logWarn = (event, error, req, context) => write("warn", event, error, req, context);
+export const logInfo = (event, context, req) => write("info", event, undefined, req, context);
 
 export function requestLogging(req, res, next) {
   req.requestId = randomUUID();
