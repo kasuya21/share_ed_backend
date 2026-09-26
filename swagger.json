@@ -85,14 +85,6 @@
             "type": "string",
             "nullable": true
           },
-          "is_onboarded": {
-            "type": "boolean",
-            "default": false
-          },
-          "current_theme_id": {
-            "type": "string",
-            "nullable": true
-          },
           "current_frame_id": {
             "type": "string",
             "nullable": true
@@ -144,15 +136,6 @@
             ]
           },
           "view_count": {
-            "type": "integer"
-          },
-          "like_count": {
-            "type": "integer"
-          },
-          "comment_count": {
-            "type": "integer"
-          },
-          "bookmark_count": {
             "type": "integer"
           },
           "author_id": {
@@ -305,7 +288,6 @@
           "item_type": {
             "type": "string",
             "enum": [
-              "THEME",
               "FRAME"
             ]
           },
@@ -1833,7 +1815,7 @@
                   "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string", "description": "Optional: Existing reward ID" },
                   "item_name": { "type": "string", "description": "Optional: New reward name" },
-                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_type": { "type": "string", "enum": ["FRAME"] },
                   "item_description": { "type": "string" },
                   "is_active": { "type": "boolean", "default": true },
                   "image": { "type": "string", "format": "binary", "description": "Image for the new reward" }
@@ -1879,7 +1861,7 @@
                   "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
-                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_type": { "type": "string", "enum": ["FRAME"] },
                   "item_description": { "type": "string" },
                   "is_active": { "type": "boolean" },
                   "image": { "type": "string", "format": "binary" }
@@ -2343,8 +2325,6 @@
                   "username": { "type": "string" },
                   "nickname": { "type": "string" },
                   "bio": { "type": "string" },
-                  "location": { "type": "string" },
-                  "occupation": { "type": "string" },
                   "education_level": {
                     "type": "string",
                     "enum": ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"]
@@ -2403,8 +2383,6 @@
                   "username": { "type": "string" },
                   "nickname": { "type": "string" },
                   "bio": { "type": "string" },
-                  "location": { "type": "string" },
-                  "occupation": { "type": "string" },
                   "education_level": { "type": "string" },
                   "facebook_url": { "type": "string" },
                   "instagram_url": { "type": "string" },
@@ -2424,45 +2402,10 @@
         }
       }
     },
-    "/users/onboard": {
-      "put": {
-        "summary": "Onboard User",
-        "description": "Initial profile setup for newly registered users.",
-        "tags": [
-          "👤 Users"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["username"],
-                "properties": {
-                  "username": { "type": "string" },
-                  "bio": { "type": "string" },
-                  "education_level": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "User onboarded successfully."
-          }
-        }
-      }
-    },
     "/users/equip": {
       "put": {
-        "summary": "Equip Theme or Frame",
-        "description": "Equip a purchased theme or frame item. Set itemId to null to unequip.",
+        "summary": "Equip Profile Frame",
+        "description": "Equip a purchased frame item. Set itemId to null to unequip.",
         "tags": [
           "👤 Users"
         ],
@@ -2489,7 +2432,6 @@
                   "type": {
                     "type": "string",
                     "enum": [
-                      "THEME",
                       "FRAME"
                     ],
                     "description": "Type of item"

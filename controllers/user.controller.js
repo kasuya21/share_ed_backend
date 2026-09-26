@@ -49,7 +49,7 @@ const validateSocialLinks = (links) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { username, nickname, location, occupation, bio, education_level, social_links } = req.body;
+    const { username, nickname, bio, education_level, social_links } = req.body;
 
     // 1. ตรวจสอบชื่อเล่น (username) ซ้ำ
     if (username) {
@@ -68,8 +68,6 @@ export const updateProfile = async (req, res) => {
     const updateData = {};
     if (username !== undefined) updateData.username = username;
     if (nickname !== undefined) updateData.nickname = nickname;
-    if (location !== undefined) updateData.location = location;
-    if (occupation !== undefined) updateData.occupation = occupation;
 
     if (bio !== undefined) {
       if (bio.length > 500) {
@@ -151,7 +149,6 @@ export const updateProfile = async (req, res) => {
         education_level: true,
         role: true,
         social_links: true,
-        current_theme_id: true,
         current_frame_id: true,
         current_frame: true
       }
@@ -170,61 +167,16 @@ export const updateProfile = async (req, res) => {
 };
 
 // ============================================================
-// PUT /api/v1/users/onboard
-// กรอกข้อมูลโปรไฟล์ครั้งแรก
-// ============================================================
-export const onboardUser = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { username, bio, education_level } = req.body;
-
-    if (!username) {
-      return res.status(400).json({ success: false, message: "ต้องระบุชื่อเล่นสำหรับการตั้งค่าครั้งแรก" });
-    }
-
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        username: username,
-        id: { not: userId }
-      }
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: "ชื่อเล่นนี้ถูกใช้งานแล้ว" });
-    }
-
-    const updateData = {
-      username,
-      is_onboarded: true
-    };
-
-    if (bio) updateData.bio = bio;
-    if (education_level) updateData.education_level = education_level;
-
-
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: updateData
-    });
-
-    res.status(200).json({ success: true, message: "ตั้งค่าโปรไฟล์ครั้งแรกสำเร็จ", data: updatedUser });
-  } catch (error) {
-    logError("controllers.onboardUser", error, req);
-    res.status(500).json({ success: false, message: "ตั้งค่าโปรไฟล์ครั้งแรกไม่สำเร็จ" });
-  }
-};
-
-// ============================================================
 // PUT /api/v1/users/equip
-// สวมใส่ Theme/Frame
+// สวมใส่กรอบรูป
 // ============================================================
 export const equipItem = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { itemId, type } = req.body; // 'THEME' or 'FRAME'
+    const { itemId, type } = req.body;
 
-    if (!['THEME', 'FRAME'].includes(type)) {
-      return res.status(400).json({ success: false, message: "ประเภทไอเท็มไม่ถูกต้อง ต้องเป็น THEME หรือ FRAME" });
+    if (type !== 'FRAME') {
+      return res.status(400).json({ success: false, message: "ประเภทไอเท็มต้องเป็น FRAME" });
     }
 
     if (itemId) {
@@ -249,13 +201,9 @@ export const equipItem = async (req, res) => {
       }
     }
 
-    const updateData = type === 'THEME' 
-      ? { current_theme_id: itemId || null }
-      : { current_frame_id: itemId || null };
-
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: updateData,
+      data: { current_frame_id: itemId || null },
       select: {
         current_frame_id: true,
         current_frame: true,
@@ -264,7 +212,7 @@ export const equipItem = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `สวมใส่ ${type === 'THEME' ? 'ธีม' : 'กรอบรูป'} สำเร็จ`,
+      message: "สวมใส่กรอบรูปสำเร็จ",
       data: updatedUser,
     });
   } catch (error) {
@@ -293,13 +241,9 @@ export const getPublicProfile = async (req, res) => {
         education_level: true,
         role: true,
         nickname: true,
-        location: true,
-        occupation: true,
         social_links: true,
         created_at: true,
-        current_theme_id: true,
         current_frame_id: true,
-        current_theme: true,
         current_frame: true,
         _count: {
           select: {
@@ -379,8 +323,6 @@ export const updateProfileWithMedia = async (req, res) => {
       nickname,
       bio,
       education_level,
-      location,
-      occupation,
       facebook_url,
       instagram_url,
       discord_url,
@@ -404,8 +346,6 @@ export const updateProfileWithMedia = async (req, res) => {
     const updateData = {};
     if (username !== undefined) updateData.username = username;
     if (nickname !== undefined) updateData.nickname = nickname;
-    if (location !== undefined) updateData.location = location;
-    if (occupation !== undefined) updateData.occupation = occupation;
     
     if (facebook_url !== undefined || instagram_url !== undefined || discord_url !== undefined) {
       updateData.social_links = {
@@ -461,8 +401,6 @@ export const updateProfileWithMedia = async (req, res) => {
         education_level: true,
         role: true,
         nickname: true,
-        location: true,
-        occupation: true,
         social_links: true,
         profile_banner: true,
         wallpaper: true,
@@ -511,8 +449,6 @@ export const getUserById = async (req, res) => {
         education_level: true,
         role: true,
         nickname: true,
-        location: true,
-        occupation: true,
         social_links: true,
         profile_banner: true,
         wallpaper: true,

@@ -40,7 +40,6 @@ enum StorageProvider {
 }
 
 enum ItemType {
-  THEME
   FRAME
 }
 
@@ -103,17 +102,9 @@ model User {
   wallpaper       String?
   profile_banner  String?
 
-  is_onboarded Boolean @default(false)
-
   nickname   String?
-  location   String?
-  occupation String?
 
-  current_theme_id String?
   current_frame_id String?
-
-  // ลบ Theme -> User ยังอยู่
-  current_theme RewardItem? @relation("UserTheme", fields: [current_theme_id], references: [id], onDelete: SetNull)
 
   // ลบ Frame -> User ยังอยู่
   current_frame RewardItem? @relation("UserFrame", fields: [current_frame_id], references: [id], onDelete: SetNull)
@@ -185,10 +176,6 @@ model Post {
   education_level EducationLevel
 
   view_count     Int @default(0)
-  like_count     Int @default(0)
-  comment_count  Int @default(0)
-  bookmark_count Int @default(0)
-
   author_id String
 
   // HARD DELETE USER -> Posts หายตาม
@@ -219,7 +206,6 @@ model Post {
   @@index([author_id])
   @@index([education_level])
   @@index([created_at])
-  @@index([like_count])
   @@index([view_count])
   @@index([post_status, created_at])
   @@index([post_status, view_count])
@@ -488,7 +474,6 @@ model RewardItem {
 
   achievements Achievement[]
 
-  theme_users User[] @relation("UserTheme")
   frame_users User[] @relation("UserFrame")
 
   created_at DateTime @default(now())
