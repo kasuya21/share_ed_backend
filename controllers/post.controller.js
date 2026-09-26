@@ -2042,18 +2042,32 @@ export const getPlatformStats = async (req, res) => {
 // ============================================================
 const DIRECT_UPLOAD_TYPES = new Set(Object.keys(DIRECT_UPLOAD_POLICIES));
 
+function getCloudinaryUploadConfig() {
+  const cloudName = String(process.env.CLOUDINARY_CLOUD_NAME || "").trim();
+  const apiKey = String(process.env.CLOUDINARY_API_KEY || "").trim();
+  const apiSecret = String(process.env.CLOUDINARY_API_SECRET || "").trim();
+  if (!cloudName || !apiKey || !apiSecret) {
+    const error = new Error("Cloudinary upload configuration is incomplete");
+    error.code = "CLOUDINARY_CONFIG_ERROR";
+    error.status = 503;
+    throw error;
+  }
+  return { cloudName, apiKey, apiSecret };
+}
+
 function directUploadSignature(type, timestamp, userId, sessionId) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   const paramsToSign = directUploadParams(type, userId, timestamp, sessionId);
+  const { cloudName, apiKey, apiSecret } = getCloudinaryUploadConfig();
   return {
     type,
-    signature: cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET),
+    signature: cloudinary.utils.api_sign_request(paramsToSign, apiSecret),
     timestamp,
-    apiKey: process.env.CLOUDINARY_API_KEY,
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey,
+    cloudName,
     folder: paramsToSign.folder,
     uploadParams: paramsToSign,
-    uploadUrl: `https://api.cloudinary.com/v1_1/${process.env.CLOUDINARY_CLOUD_NAME}/${policy.resourceType}/upload`,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/${policy.resourceType}/upload`,
   };
 }
 
@@ -2075,8 +2089,9 @@ export const getUploadSignature = async (req, res) => {
     });
   } catch (error) {
     logError("controllers.getUploadSignature", error, req);
-    res.status(500).json({
+    res.status(error.code === "CLOUDINARY_CONFIG_ERROR" ? 503 : 500).json({
       success: false,
+      code: error.code || "UPLOAD_SIGNATURE_ERROR",
       message: "Failed to generate upload signature"
     });
   }
@@ -2103,6 +2118,10 @@ export const getUploadSignatures = async (req, res) => {
       });
     }
 
+    // Validate configuration before creating a database session so a broken
+    // deployment cannot leave an unusable upload session behind.
+    getCloudinaryUploadConfig();
+
     const timestamp = Math.round(Date.now() / 1000);
     const sessionId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
@@ -2123,7 +2142,11 @@ export const getUploadSignatures = async (req, res) => {
     });
   } catch (error) {
     logError("controllers.getUploadSignatures", error, req);
-    return res.status(500).json({ success: false, message: "Failed to generate upload signatures" });
+    return res.status(error.code === "CLOUDINARY_CONFIG_ERROR" ? 503 : 500).json({
+      success: false,
+      code: error.code || "UPLOAD_SIGNATURE_ERROR",
+      message: "Failed to generate upload signatures",
+    });
   }
 };
 

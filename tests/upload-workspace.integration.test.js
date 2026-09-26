@@ -8,6 +8,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-key";
 process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
 process.env.CLOUDINARY_API_KEY = "test-key";
 process.env.CLOUDINARY_API_SECRET = "test-secret";
+process.env.UPLOAD_WORKSPACE_V2_ENABLED = "true";
 
 const { prisma } = await import("../configs/prisma.js");
 const {
