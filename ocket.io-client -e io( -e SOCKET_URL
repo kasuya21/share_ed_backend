@@ -1,0 +1,20 @@
+[35m.env.example[m[36m:[m[32m2[m[36m:[mDATA[1;31mBASE_URL[m=
+[35m.env.example[m[36m:[m[32m3[m[36m:[mSUPA[1;31mBASE_URL[m=
+[35mconfigs/prisma.js[m[36m:[m[32m15[m[36m:[m  connectionString: process.env.DATA[1;31mBASE_URL[m,
+[35mconfigs/supabase.config.js[m[36m:[m[32m4[m[36m:[m  process.env.SUPA[1;31mBASE_URL[m || "https://placeholder.supabase.co",
+[35mconfigs/supabase.config.js[m[36m:[m[32m17[m[36m:[m  process.env.SUPA[1;31mBASE_URL[m || "https://placeholder.supabase.co",
+[35mconfigs/swagger.js[m[36m:[m[32m10[m[36m:[m      "url": "https://share-ed-backend-6jer.[1;31monrender.com[m/api/v1",
+[35mcontrollers/auth.controller.js[m[36m:[m[32m442[m[36m:[m      process.env.SUPA[1;31mBASE_URL[m,
+[35mcontrollers/auth.controller.js[m[36m:[m[32m483[m[36m:[m      process.env.SUPA[1;31mBASE_URL[m,
+[35mindex.js[m[36m:[m[32m49[m[36m:[m    "https://share-ed-backend-6jer.[1;31monrender.com[m",
+[35mload-tests/upload-signatures.js[m[36m:[m[32m4[m[36m:[mconst baseUrl = (process.env.LOAD_[1;31mBASE_URL[m || "http://localhost:5000/api/v1").replace(/\/$/, "");
+[35mprisma.config.js[m[36m:[m[32m8[m[36m:[m    url: process.env.DIRECT_URL || process.env.DATA[1;31mBASE_URL[m,
+[35mswagger.json[m[36m:[m[32m10[m[36m:[m      "url": "https://share-ed-backend-6jer.[1;31monrender.com[m/api/v1",
+[35mtests/admin-security.test.js[m[36m:[m[32m5[m[36m:[mprocess.env.SUPA[1;31mBASE_URL[m = "https://example.supabase.co";
+[35mtests/admin-security.test.js[m[36m:[m[32m7[m[36m:[mprocess.env.DATA[1;31mBASE_URL[m = "postgresql://test:test@127.0.0.1:1/test";
+[35mtests/comment-notification.test.js[m[36m:[m[32m4[m[36m:[mprocess.env.DATA[1;31mBASE_URL[m = "postgresql://test:test@127.0.0.1:1/test";
+[35mtests/like-notification.test.js[m[36m:[m[32m4[m[36m:[mprocess.env.DATA[1;31mBASE_URL[m = "postgresql://test:test@127.0.0.1:1/test";
+[35mtests/performance-optimizations.test.js[m[36m:[m[32m4[m[36m:[mprocess.env.DATA[1;31mBASE_URL[m = "postgresql://test:test@127.0.0.1:1/test";
+[35mtests/performance-optimizations.test.js[m[36m:[m[32m5[m[36m:[mprocess.env.SUPA[1;31mBASE_URL[m = "https://example.supabase.co";
+[35mtests/report-realtime.test.js[m[36m:[m[32m4[m[36m:[mprocess.env.DATA[1;31mBASE_URL[m = "postgresql://test:test@127.0.0.1:1/test";
+[35mutils/logger.js[m[36m:[m[32m5[m[36m:[mconst secretKey = /password|token|secret|authorization|cookie|key$|data[1;31mbase_url[m|direct_url|cloudinary_url/i;
