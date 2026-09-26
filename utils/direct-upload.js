@@ -1,5 +1,8 @@
 const MB = 1024 * 1024;
 
+export const MAX_DIRECT_UPLOAD_IMAGES = 5;
+export const MAX_POST_PDFS = 1;
+
 export const DIRECT_UPLOAD_POLICIES = Object.freeze({
   cover: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp", "apng"], maxBytes: 2 * MB, folder: "covers" }),
   media: Object.freeze({ resourceType: "image", formats: ["jpg", "jpeg", "png", "webp", "apng"], maxBytes: 2 * MB, folder: "media" }),
@@ -115,8 +118,8 @@ export async function verifyStoredDirectUpload(asset, options, lookup) {
 }
 
 export function validateDirectUploadList(cover, media = []) {
-  if (!Array.isArray(media) || media.length > 15) {
-    throw new DirectUploadValidationError("แนบไฟล์ได้สูงสุด 15 ไฟล์");
+  if (!Array.isArray(media) || media.length > MAX_DIRECT_UPLOAD_IMAGES) {
+    throw new DirectUploadValidationError(`แนบรูปภาพประกอบได้สูงสุด ${MAX_DIRECT_UPLOAD_IMAGES} ไฟล์`);
   }
   const ids = new Set();
   for (const asset of [cover, ...media].filter(Boolean)) {

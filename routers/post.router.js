@@ -55,10 +55,10 @@ router.delete("/upload-sessions/:sessionId/files/:assetId", authMiddleware, dele
 router.get("/:postId/media/:mediaId/download", authMiddleware, downloadPostMedia);
 router.get("/:id", authMiddleware, getPostById);
 
-// Multi-file upload: cover_image (1) + media_files (up to 15 PDFs/images)
+// Multi-file upload: cover_image (1) + media_files (up to 5 images and 1 PDF)
 const postFiles = postUpload.fields([
   { name: "cover_image", maxCount: 1 },
-  { name: "media_files", maxCount: 15 },
+  { name: "media_files", maxCount: 6 },
 ]);
 
 const postOperation = operation => (req, res, next) => {

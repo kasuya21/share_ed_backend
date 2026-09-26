@@ -20,6 +20,8 @@ import {
   getPostPdfMaxBytes,
 } from "../utils/supabase-storage.js";
 import {
+  MAX_DIRECT_UPLOAD_IMAGES,
+  MAX_POST_PDFS,
   DIRECT_UPLOAD_POLICIES,
   DirectUploadValidationError,
   directUploadParams,
@@ -56,6 +58,17 @@ const POST_CREATE_INCLUDE = {
 };
 
 const IDEMPOTENCY_KEY_PATTERN = /^[a-zA-Z0-9_-]{16,128}$/;
+
+function validatePostAttachmentCounts(files = []) {
+  const pdfCount = files.filter(file => file?.mimetype === "application/pdf").length;
+  const imageCount = files.length - pdfCount;
+  if (imageCount > MAX_DIRECT_UPLOAD_IMAGES) {
+    throw new DirectUploadValidationError(`แนบรูปภาพประกอบได้สูงสุด ${MAX_DIRECT_UPLOAD_IMAGES} ไฟล์`);
+  }
+  if (pdfCount > MAX_POST_PDFS) {
+    throw new DirectUploadValidationError(`แนบไฟล์ PDF ได้สูงสุด ${MAX_POST_PDFS} ไฟล์`, "pdf_upload");
+  }
+}
 
 async function findCreatedPost(authorId, idempotencyKey) {
   if (!idempotencyKey) return null;
@@ -870,6 +883,7 @@ export const createPost = async (req, res) => {
 
     const coverFiles = req.files?.cover_image;
     const mediaFiles = req.files?.media_files;
+    validatePostAttachmentCounts(mediaFiles);
 
     const directCover = parseJsonValue(req.body?.cover_upload);
     const directMedia = parseJsonValue(req.body?.media_uploads);
@@ -915,11 +929,11 @@ export const createPost = async (req, res) => {
         }
 
         validateDirectUploadList(directCover, cloudinaryMedia);
-        if (cloudinaryMedia.length > 15) {
-          throw new DirectUploadValidationError("แนบรูปภาพประกอบได้สูงสุด 15 ไฟล์");
+        if (cloudinaryMedia.length > MAX_DIRECT_UPLOAD_IMAGES) {
+          throw new DirectUploadValidationError(`แนบรูปภาพประกอบได้สูงสุด ${MAX_DIRECT_UPLOAD_IMAGES} ไฟล์`);
         }
-        if (supabasePdfs.length > 1) {
-          throw new DirectUploadValidationError("แนบไฟล์ PDF ได้สูงสุด 1 ไฟล์", "pdf_upload");
+        if (supabasePdfs.length > MAX_POST_PDFS) {
+          throw new DirectUploadValidationError(`แนบไฟล์ PDF ได้สูงสุด ${MAX_POST_PDFS} ไฟล์`, "pdf_upload");
         }
 
         let totalBytes = 0;
@@ -1412,6 +1426,7 @@ export const updatePost = async (req, res) => {
     }
 
     const mediaFiles = req.files?.media_files;
+    validatePostAttachmentCounts(mediaFiles);
     if (mediaFiles && mediaFiles.length > 0) {
       for (const file of mediaFiles) {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
