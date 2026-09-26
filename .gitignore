@@ -16,4 +16,6 @@ tests/*
 !tests/post-validation.test.js
 !tests/admin-security.test.js
 !tests/report-realtime.test.js
+!tests/upload-workspace.unit.test.js
+!tests/upload-workspace.integration.test.js
 scripts

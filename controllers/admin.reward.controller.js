@@ -71,8 +71,8 @@ export const createReward = async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing item_name or item_type" });
     }
 
-    if (!["THEME", "FRAME"].includes(item_type)) {
-      return res.status(400).json({ success: false, message: "item_type must be THEME or FRAME" });
+    if (item_type !== "FRAME") {
+      return res.status(400).json({ success: false, message: "item_type must be FRAME" });
     }
 
     // Generate ID automatically using Prisma
@@ -126,8 +126,8 @@ export const updateReward = async (req, res) => {
     const updateData = {};
     if (item_name) updateData.item_name = item_name;
     if (item_type) {
-      if (!["THEME", "FRAME"].includes(item_type)) {
-         return res.status(400).json({ success: false, message: "item_type must be THEME or FRAME" });
+      if (item_type !== "FRAME") {
+         return res.status(400).json({ success: false, message: "item_type must be FRAME" });
       }
       updateData.item_type = item_type;
     }
@@ -215,10 +215,6 @@ export const deleteReward = async (req, res) => {
       prisma.user.updateMany({
         where: { current_frame_id: id },
         data: { current_frame_id: null },
-      }),
-      prisma.user.updateMany({
-        where: { current_theme_id: id },
-        data: { current_theme_id: null },
       }),
       prisma.userUnlockedItem.deleteMany({
         where: { item_id: id },

@@ -40,7 +40,6 @@ enum StorageProvider {
 }
 
 enum ItemType {
-  THEME
   FRAME
 }
 
@@ -78,8 +77,37 @@ enum PostStatus {
 
 enum UploadSessionStatus {
   PENDING
+  OPEN
+  FINALIZING
   COMMITTED
   EXPIRED
+  CLEANING
+  CLEANED
+}
+
+enum UploadAssetType {
+  COVER
+  IMAGE
+  PDF
+}
+
+enum UploadAssetStatus {
+  SIGNED
+  UPLOADED
+  VERIFYING
+  VERIFIED
+  ATTACHED
+  DETACHED
+  DELETE_PENDING
+  DELETED
+  FAILED
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 //////////////////////////////////////////////////////
@@ -103,17 +131,9 @@ model User {
   wallpaper       String?
   profile_banner  String?
 
-  is_onboarded Boolean @default(false)
+  nickname String?
 
-  nickname   String?
-  location   String?
-  occupation String?
-
-  current_theme_id String?
   current_frame_id String?
-
-  // ลบ Theme -> User ยังอยู่
-  current_theme RewardItem? @relation("UserTheme", fields: [current_theme_id], references: [id], onDelete: SetNull)
 
   // ลบ Frame -> User ยังอยู่
   current_frame RewardItem? @relation("UserFrame", fields: [current_frame_id], references: [id], onDelete: SetNull)
@@ -184,12 +204,8 @@ model Post {
 
   education_level EducationLevel
 
-  view_count     Int @default(0)
-  like_count     Int @default(0)
-  comment_count  Int @default(0)
-  bookmark_count Int @default(0)
-
-  author_id String
+  view_count Int    @default(0)
+  author_id  String
 
   // HARD DELETE USER -> Posts หายตาม
   author User @relation(fields: [author_id], references: [id], onDelete: Cascade)
@@ -219,7 +235,6 @@ model Post {
   @@index([author_id])
   @@index([education_level])
   @@index([created_at])
-  @@index([like_count])
   @@index([view_count])
   @@index([post_status, created_at])
   @@index([post_status, view_count])
@@ -238,6 +253,8 @@ model UploadSession {
   // ลบ User -> UploadSession หาย
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  draft_id String?
+
   post_id String?
 
   // ลบ Post -> เก็บ Session ไว้ แต่ตัด relation
@@ -245,17 +262,91 @@ model UploadSession {
 
   status UploadSessionStatus @default(PENDING)
 
-  requested_types Json
+  requested_types Json?
   verified_assets Json?
 
+  reserved_bytes   Int      @default(0)
+  last_activity_at DateTime @default(now())
+
   expires_at DateTime
+
+  assets UploadAsset[]
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
+  @@unique([user_id, draft_id])
   @@index([user_id, status])
   @@index([status, expires_at])
+  @@index([last_activity_at])
   @@map("upload_sessions")
+}
+
+//////////////////////////////////////////////////////
+// UPLOAD ASSET
+//////////////////////////////////////////////////////
+
+model UploadAsset {
+  id String @id @default(uuid()) @map("upload_asset_id")
+
+  upload_session_id String
+  upload_session    UploadSession @relation(fields: [upload_session_id], references: [id], onDelete: Cascade)
+
+  client_file_id String
+
+  provider   StorageProvider
+  asset_type UploadAssetType
+  status     UploadAssetStatus @default(SIGNED)
+
+  bucket       String?
+  storage_path String?
+  public_id    String?
+  secure_url   String?
+
+  original_name      String?
+  mime_type          String?
+  file_size          Int?
+  checksum           String?
+  verification_error String?
+
+  verified_at DateTime?
+  attached_at DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@unique([upload_session_id, client_file_id])
+  @@index([upload_session_id, status])
+  @@index([status, updated_at])
+  @@index([provider, storage_path])
+  @@index([provider, public_id])
+  @@map("upload_assets")
+}
+
+//////////////////////////////////////////////////////
+// BACKGROUND JOBS
+//////////////////////////////////////////////////////
+
+model BackgroundJob {
+  id String @id @default(uuid()) @map("job_id")
+
+  type    String
+  payload Json
+  status  JobStatus @default(PENDING)
+
+  attempts     Int       @default(0)
+  max_attempts Int       @default(3)
+  available_at DateTime  @default(now())
+  locked_at    DateTime?
+  locked_by    String?
+  last_error   String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([status, available_at])
+  @@index([locked_at])
+  @@map("background_jobs")
 }
 
 //////////////////////////////////////////////////////
@@ -488,7 +579,6 @@ model RewardItem {
 
   achievements Achievement[]
 
-  theme_users User[] @relation("UserTheme")
   frame_users User[] @relation("UserFrame")
 
   created_at DateTime @default(now())

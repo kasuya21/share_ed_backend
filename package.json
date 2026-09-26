@@ -12,7 +12,9 @@
     "build": "prisma generate",
     "postinstall": "prisma generate",
     "seed": "node prisma/seed.js",
-    "load:upload-signatures": "node load-tests/upload-signatures.js"
+    "load:upload-signatures": "node load-tests/upload-signatures.js",
+    "worker": "node workers/index.js",
+    "load:workspace": "k6 run load-tests/upload-workspace.k6.js"
   },
   "keywords": [
     "this",

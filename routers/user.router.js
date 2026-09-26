@@ -1,5 +1,5 @@
 import express from "express";
-import { updateProfile, updateProfileWithMedia, equipItem, getPublicProfile, onboardUser, getUserInventory } from "../controllers/user.controller.js";
+import { updateProfile, updateProfileWithMedia, equipItem, getPublicProfile, getUserInventory } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { profileMediaUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
 
@@ -32,10 +32,7 @@ router.put(
   updateProfileWithMedia
 );
 
-// PUT  /api/v1/users/equip   — สวมใส่ Theme/Frame (ต้อง login)
+// PUT  /api/v1/users/equip   — สวมใส่กรอบรูป (ต้อง login)
 router.put("/equip", authMiddleware, equipItem);
-
-// PUT  /api/v1/users/onboard — กรอกข้อมูลครั้งแรก
-router.put("/onboard", authMiddleware, onboardUser);
 
 export default router;

@@ -77,14 +77,6 @@ export const swaggerDocument = {
             "type": "string",
             "nullable": true
           },
-          "location": {
-            "type": "string",
-            "nullable": true
-          },
-          "occupation": {
-            "type": "string",
-            "nullable": true
-          },
           "social_links": {
             "type": "object",
             "nullable": true
@@ -94,14 +86,6 @@ export const swaggerDocument = {
             "nullable": true
           },
           "profile_banner": {
-            "type": "string",
-            "nullable": true
-          },
-          "is_onboarded": {
-            "type": "boolean",
-            "default": false
-          },
-          "current_theme_id": {
             "type": "string",
             "nullable": true
           },
@@ -156,15 +140,6 @@ export const swaggerDocument = {
             ]
           },
           "view_count": {
-            "type": "integer"
-          },
-          "like_count": {
-            "type": "integer"
-          },
-          "comment_count": {
-            "type": "integer"
-          },
-          "bookmark_count": {
             "type": "integer"
           },
           "author_id": {
@@ -317,7 +292,6 @@ export const swaggerDocument = {
           "item_type": {
             "type": "string",
             "enum": [
-              "THEME",
               "FRAME"
             ]
           },
@@ -2400,12 +2374,6 @@ export const swaggerDocument = {
                   "nickname": {
                     "type": "string"
                   },
-                  "location": {
-                    "type": "string"
-                  },
-                  "occupation": {
-                    "type": "string"
-                  },
                   "social_links": {
                     "type": "string",
                     "description": "JSON string of social links (e.g. {\"facebook\":\"url\"})"
@@ -2486,12 +2454,6 @@ export const swaggerDocument = {
                       "UNIVERSITY"
                     ]
                   },
-                  "location": {
-                    "type": "string"
-                  },
-                  "occupation": {
-                    "type": "string"
-                  },
                   "facebook_url": {
                     "type": "string"
                   },
@@ -2541,74 +2503,10 @@ export const swaggerDocument = {
         }
       }
     },
-    "/users/onboard": {
-      "put": {
-        "summary": "Onboard User Profile",
-        "description": "กรอกข้อมูลโปรไฟล์ครั้งแรกหลังจากสมัครสมาชิก",
-        "tags": [
-          "👤 Users"
-        ],
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "bio": {
-                    "type": "string"
-                  },
-                  "education_level": {
-                    "type": "string",
-                    "enum": [
-                      "MIDDLE_SCHOOL",
-                      "HIGH_SCHOOL",
-                      "UNIVERSITY"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Profile onboarded successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/User"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Username already taken."
-          },
-          "401": {
-            "description": "Unauthorized."
-          },
-          "500": {
-            "description": "Server error."
-          }
-        }
-      }
-    },
     "/users/equip": {
       "put": {
-        "summary": "Equip Theme or Frame",
-        "description": "Equip a purchased theme or frame item. Set itemId to null to unequip.",
+        "summary": "Equip Profile Frame",
+        "description": "Equip a purchased frame item. Set itemId to null to unequip.",
         "tags": [
           "👤 Users"
         ],
@@ -2635,7 +2533,6 @@ export const swaggerDocument = {
                   "type": {
                     "type": "string",
                     "enum": [
-                      "THEME",
                       "FRAME"
                     ],
                     "description": "Type of item"
@@ -2780,7 +2677,7 @@ export const swaggerDocument = {
                   "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
-                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_type": { "type": "string", "enum": ["FRAME"] },
                   "item_description": { "type": "string" },
                   "is_active": { "type": "boolean" },
                   "image": { "type": "string", "format": "binary" }
@@ -2838,7 +2735,7 @@ export const swaggerDocument = {
                   "achievement_type": { "type": "string" },
                   "reward_item_id": { "type": "string" },
                   "item_name": { "type": "string" },
-                  "item_type": { "type": "string", "enum": ["THEME", "FRAME"] },
+                  "item_type": { "type": "string", "enum": ["FRAME"] },
                   "item_description": { "type": "string" },
                   "is_active": { "type": "boolean" },
                   "image": { "type": "string", "format": "binary" }
