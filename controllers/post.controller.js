@@ -82,7 +82,6 @@ async function findCreatedPost(authorId, idempotencyKey) {
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
-const POST_VIEW_RECENCY_REFRESH_MS = 15 * 60 * 1000;
 const TRENDING_WINDOWS_MS = Object.freeze({
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -111,18 +110,14 @@ async function mapWithConcurrency(items, concurrency, operation) {
 export async function recordPostView(userId, postId, viewedAt = new Date()) {
   const existingView = await prisma.postView.findUnique({
     where: { user_id_post_id: { user_id: userId, post_id: postId } },
-    select: { id: true, viewed_at: true },
+    select: { id: true },
   });
   if (existingView) {
-    const lastViewedAt = existingView.viewed_at?.getTime?.();
-    if (Number.isFinite(lastViewedAt)
-      && viewedAt.getTime() - lastViewedAt < POST_VIEW_RECENCY_REFRESH_MS) {
-      return { created: false };
-    }
     await prisma.postView.update({
       where: { id: existingView.id },
       data: { viewed_at: viewedAt },
     });
+    trendingPostsCache.clear();
     return { created: false };
   }
 
@@ -133,6 +128,7 @@ export async function recordPostView(userId, postId, viewedAt = new Date()) {
       data: { view_count: { increment: 1 } },
     }),
   ]);
+  trendingPostsCache.clear();
   return { created: true };
 }
 
@@ -1862,7 +1858,9 @@ export const getUserPosts = async (req, res) => {
 // ============================================================
 export const getTrendingPosts = async (req, res) => {
   try {
-    res.setHeader?.("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+    // Ranking changes whenever a view is recorded. Keep the short-lived server
+    // cache, but do not let browsers or proxies pin an older ordering.
+    res.setHeader?.("Cache-Control", "no-store");
     const { level, window: requestedWindow = "7d", limit: requestedLimit } = req.query || {};
     if (level && !TRENDING_LEVELS.has(level)) {
       return res.status(400).json({
@@ -1903,6 +1901,7 @@ export const getTrendingPosts = async (req, res) => {
     const windowStartedAt = new Date(Date.now() - TRENDING_WINDOWS_MS[requestedWindow]);
 
     // One PostView row per user/post means this ranks unique recent viewers.
+    // Resolve equal counts by the latest view, then post id for stable results.
     const trendingViews = await prisma.postView.groupBy({
       by: ['post_id'],
       where: {
@@ -1913,9 +1912,12 @@ export const getTrendingPosts = async (req, res) => {
         }
       },
       _count: { post_id: true },
-      orderBy: {
-        _count: { post_id: 'desc' }
-      },
+      _max: { viewed_at: true },
+      orderBy: [
+        { _count: { post_id: 'desc' } },
+        { _max: { viewed_at: 'desc' } },
+        { post_id: 'asc' },
+      ],
       take: parsedLimit
     });
 
@@ -1928,11 +1930,18 @@ export const getTrendingPosts = async (req, res) => {
           ...(level && { education_level: level })
         },
         select: POST_CARD_SELECT,
-        orderBy: { created_at: "desc" },
+        orderBy: [
+          { created_at: "desc" },
+          { id: "asc" },
+        ],
         take: parsedLimit
       });
       const payload = {
-        data: fallbackPosts.map(post => ({ ...post, recent_view_count: 0 })),
+        data: fallbackPosts.map(post => ({
+          ...post,
+          recent_view_count: 0,
+          latest_viewed_at: null,
+        })),
         meta: {
           window: requestedWindow,
           window_started_at: windowStartedAt.toISOString(),
@@ -1953,10 +1962,17 @@ export const getTrendingPosts = async (req, res) => {
       select: POST_CARD_SELECT,
     });
 
-    const viewCounts = new Map(trendingViews.map(item => [item.post_id, item._count.post_id]));
+    const viewStats = new Map(trendingViews.map(item => [item.post_id, {
+      count: item._count.post_id,
+      latestViewedAt: item._max.viewed_at,
+    }]));
     const sortedPosts = posts
       .sort((a, b) => postIds.indexOf(a.id) - postIds.indexOf(b.id))
-      .map(post => ({ ...post, recent_view_count: viewCounts.get(post.id) || 0 }));
+      .map(post => ({
+        ...post,
+        recent_view_count: viewStats.get(post.id)?.count || 0,
+        latest_viewed_at: viewStats.get(post.id)?.latestViewedAt || null,
+      }));
 
     const payload = {
       data: sortedPosts,
