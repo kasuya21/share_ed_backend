@@ -63,5 +63,7 @@ export function isValidUuid(str) {
   return typeof str === "string" && UUID_GENERAL_REGEX.test(str.trim());
 }
 
+// Disabled by default. Production Create/Edit Post use the established flow;
+// V2 can only be exercised by explicitly opting in (for isolated tests/dev).
 export const UPLOAD_WORKSPACE_V2_ENABLED = () =>
-  process.env.UPLOAD_WORKSPACE_V2_ENABLED !== "false";
+  process.env.UPLOAD_WORKSPACE_V2_ENABLED === "true";
