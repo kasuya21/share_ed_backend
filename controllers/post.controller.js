@@ -642,32 +642,36 @@ export const createPost = async (req, res) => {
           verifySignature: (publicId, version, signature) =>
             cloudinary.utils.verify_api_response_signature(publicId, version, signature),
         };
-        if (directCover) {
-          const verifiedCover = await verifyStoredDirectUpload(directCover, {
+        const cloudinaryAssets = [
+          ...(directCover ? [{ asset: directCover, type: "cover", field: "cover_upload", isCover: true }] : []),
+          ...cloudinaryMedia.map((asset, index) => ({
+            asset,
+            type: asset?.resource_type === "raw" || asset?.format === "pdf" ? "pdf" : "media",
+            field: `media_uploads.${index}`,
+            isCover: false,
+          })),
+        ];
+        const verifiedCloudinaryAssets = await mapWithConcurrency(cloudinaryAssets, 4, async entry => {
+          const verified = await verifyStoredDirectUpload(entry.asset, {
             ...verification,
-            type: "cover",
-            field: "cover_upload",
+            type: entry.type,
+            field: entry.field,
           }, lookup);
-          verifiedCoverUrl = verifiedCover.media_url;
-          totalBytes += verifiedCover.bytes;
-          sessionAssets.push({ public_id: directCover.public_id, type: "cover", bytes: verifiedCover.bytes });
-        }
-        if (cloudinaryMedia.length > 0) {
-          const verifiedCloudinary = await mapWithConcurrency(cloudinaryMedia, 4, async (asset, index) => {
-            const type = asset?.resource_type === "raw" || asset?.format === "pdf" ? "pdf" : "media";
-            const verified = await verifyStoredDirectUpload(asset, {
-              ...verification, type, field: `media_uploads.${index}`,
-            }, lookup);
-            totalBytes += verified.bytes;
-            sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
-            return {
+          return { ...entry, verified };
+        });
+        for (const { asset, type, isCover, verified } of verifiedCloudinaryAssets) {
+          totalBytes += verified.bytes;
+          sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
+          if (isCover) {
+            verifiedCoverUrl = verified.media_url;
+          } else {
+            verifiedDirectMedia.push({
               storage_provider: "CLOUDINARY",
               media_url: verified.media_url,
               media_type: verified.media_type,
               original_name: normalizeOriginalFileName(asset.original_name),
-            };
-          });
-          verifiedDirectMedia.push(...verifiedCloudinary);
+            });
+          }
         }
         if (supabasePdfs.length > 0) {
           const verifiedSupabase = await mapWithConcurrency(supabasePdfs, 3, async (asset) => {
