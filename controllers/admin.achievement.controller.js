@@ -74,8 +74,8 @@ export const createAchievement = async (req, res) => {
       }
     } else if (item_name && item_type) {
       // Create new reward inline
-      if (!["THEME", "FRAME"].includes(item_type)) {
-        return res.status(400).json({ success: false, message: "item_type must be THEME or FRAME" });
+      if (item_type !== "FRAME") {
+        return res.status(400).json({ success: false, message: "item_type must be FRAME" });
       }
       let image_url = null;
       if (req.file) {
@@ -153,8 +153,8 @@ export const updateAchievement = async (req, res) => {
       }
     } else if (item_name && item_type) {
       // Create new reward inline
-      if (!["THEME", "FRAME"].includes(item_type)) {
-        return res.status(400).json({ success: false, message: "item_type must be THEME or FRAME" });
+      if (item_type !== "FRAME") {
+        return res.status(400).json({ success: false, message: "item_type must be FRAME" });
       }
       let image_url = null;
       if (req.file) {
@@ -240,15 +240,11 @@ export const deleteAchievement = async (req, res) => {
     ];
 
     if (shouldDeleteReward && rewardId) {
-      // 3. รีเซ็ตกรอบ/ธีมสำหรับผู้ใช้ที่กำลังสวมใส่อยู่
+      // 3. รีเซ็ตกรอบสำหรับผู้ใช้ที่กำลังสวมใส่อยู่
       transactionSteps.push(
         prisma.user.updateMany({
           where: { current_frame_id: rewardId },
           data: { current_frame_id: null },
-        }),
-        prisma.user.updateMany({
-          where: { current_theme_id: rewardId },
-          data: { current_theme_id: null },
         }),
         // 4. ลบประวัติการปลดล็อกไอเทมของผู้ใช้
         prisma.userUnlockedItem.deleteMany({
