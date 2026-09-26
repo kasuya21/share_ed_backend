@@ -915,8 +915,11 @@ export const createPost = async (req, res) => {
         }
 
         validateDirectUploadList(directCover, cloudinaryMedia);
-        if (allDirectMedia.length > 15) {
-          throw new DirectUploadValidationError("แนบไฟล์ได้สูงสุด 15 ไฟล์");
+        if (cloudinaryMedia.length > 15) {
+          throw new DirectUploadValidationError("แนบรูปภาพประกอบได้สูงสุด 15 ไฟล์");
+        }
+        if (supabasePdfs.length > 1) {
+          throw new DirectUploadValidationError("แนบไฟล์ PDF ได้สูงสุด 1 ไฟล์", "pdf_upload");
         }
 
         let totalBytes = 0;
