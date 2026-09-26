@@ -1,3 +1,4 @@
+> 📘 สำหรับพื้นฐาน Linux/Docker ขั้นตอนตรวจระบบ และวิธีแก้ปัญหาแบบละเอียด อ่านได้ที่ [คู่มือดูแล EC2 และ Production](docs/EC2_OPERATIONS_GUIDE.md)
 Share-Ed Backend
 
 คู่มือฉบับย่อสำหรับตรวจสอบและดูแล Share-Ed Backend ที่รันด้วย Docker Compose บน Amazon EC2
