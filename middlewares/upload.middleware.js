@@ -93,7 +93,7 @@ export const postUpload = createUpload({
   allowed: file => file.fieldname === "cover_image"
     ? IMAGE_TYPES.has(file.mimetype)
     : file.fieldname === "media_files" && (IMAGE_TYPES.has(file.mimetype) || file.mimetype === PDF_TYPE),
-  fileBytes: file => file.mimetype === PDF_TYPE ? 20 * MB : 2 * MB,
+  fileBytes: file => file.mimetype === PDF_TYPE ? 21 * MB : 2 * MB,
   totalBytes: positiveInteger(process.env.POST_UPLOAD_TOTAL_MB, 50, 64) * MB,
   files: 16,
 });

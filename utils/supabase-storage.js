@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { supabaseAdmin } from "../configs/supabase.config.js";
 import { logError, logWarn } from "./logger.js";
 
-export const PDF_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
+export const PDF_MAX_BYTES = 21 * 1024 * 1024; // 21 MiB (22,020,096 bytes)
 
 export function getPostPdfMaxBytes() {
   const parsed = Number.parseInt(process.env.POST_PDF_MAX_BYTES, 10);

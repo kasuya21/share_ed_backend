@@ -3,7 +3,7 @@ const MB = 1024 * 1024;
 export const UPLOAD_WORKSPACE_LIMITS = Object.freeze({
   MAX_FILES: 15,
   MAX_TOTAL_BYTES: 50 * MB, // 52,428,800 bytes
-  MAX_PDF_BYTES: 20 * MB,   // 20,971,520 bytes
+  MAX_PDF_BYTES: 21 * MB,   // 22,020,096 bytes
   MAX_IMAGE_BYTES: 2 * MB,  // 2,097,152 bytes
   SESSION_TTL_MS: 2 * 60 * 60 * 1000, // 2 hours
   CLEANUP_GRACE_PERIOD_MS: 24 * 60 * 60 * 1000, // 24 hours
