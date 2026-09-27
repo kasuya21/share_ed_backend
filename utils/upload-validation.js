@@ -7,3 +7,13 @@ export function isSupportedFile(buffer) {
     || buffer.toString("ascii", 0, 5) === "%PDF-"
     || (buffer.toString("ascii", 4, 8) === "ftyp" && ["isom", "iso2", "mp41", "mp42", "avc1", "M4V "].includes(buffer.toString("ascii", 8, 12)));
 }
+
+export function isSvgFile(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0) return false;
+
+  // SVG has no binary magic bytes. Inspect the opening portion while allowing
+  // the optional BOM/XML declaration and comments that may precede <svg>.
+  const opening = buffer.subarray(0, 16 * 1024).toString("utf8").replace(/^\uFEFF/, "");
+  const hasSvgRoot = /^\s*(?:<\?xml[\s\S]*?\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE\s+svg(?:\s[^>]*)?>\s*)?<svg(?:\s|>)/i.test(opening);
+  return hasSvgRoot && /<\/svg\s*>/i.test(buffer.toString("utf8"));
+}

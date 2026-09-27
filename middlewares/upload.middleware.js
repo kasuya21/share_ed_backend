@@ -1,12 +1,13 @@
 import { logError, logWarn } from "../utils/logger.js";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
-import { isSupportedFile } from "../utils/upload-validation.js";
+import { isSupportedFile, isSvgFile } from "../utils/upload-validation.js";
 
 const MB = 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/apng"]);
 const GIF_TYPE = "image/gif";
 const WEBP_TYPE = "image/webp";
+const SVG_TYPE = "image/svg+xml";
 const ADMIN_IMAGE_TYPES = new Set([...IMAGE_TYPES, GIF_TYPE, WEBP_TYPE]);
 const PDF_TYPE = "application/pdf";
 const VIDEO_TYPE = "video/mp4";
@@ -22,7 +23,7 @@ function positiveInteger(value, fallback, maximum = Number.MAX_SAFE_INTEGER) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
 }
 
-function createBoundedMemoryStorage({ totalBytes, fileBytes }) {
+function createBoundedMemoryStorage({ totalBytes, fileBytes, contentAllowed = (_req, _file, buffer) => isSupportedFile(buffer) }) {
   return {
     _handleFile(req, file, callback) {
       const chunks = [];
@@ -60,7 +61,7 @@ function createBoundedMemoryStorage({ totalBytes, fileBytes }) {
       file.stream.once("end", () => {
         if (failure) return complete(failure);
         const buffer = Buffer.concat(chunks, currentFileBytes);
-        if (!isSupportedFile(buffer)) {
+        if (!contentAllowed(req, file, buffer)) {
           return complete(uploadError("INVALID_UPLOAD", "Unsupported file content"));
         }
         complete(null, { buffer, size: currentFileBytes });
@@ -73,9 +74,9 @@ function createBoundedMemoryStorage({ totalBytes, fileBytes }) {
   };
 }
 
-function createUpload({ allowed, totalBytes, fileBytes, files, fields = 30 }) {
+function createUpload({ allowed, contentAllowed, totalBytes, fileBytes, files, fields = 30 }) {
   return multer({
-    storage: createBoundedMemoryStorage({ totalBytes, fileBytes }),
+    storage: createBoundedMemoryStorage({ totalBytes, fileBytes, contentAllowed }),
     limits: {
       files,
       fields,
@@ -119,7 +120,11 @@ export const profileMediaUpload = createUpload({
 });
 
 export const adminImageUpload = createUpload({
-  allowed: (_req, file) => file.fieldname === "image" && ADMIN_IMAGE_TYPES.has(file.mimetype),
+  allowed: (_req, file) => file.fieldname === "image"
+    && (ADMIN_IMAGE_TYPES.has(file.mimetype) || file.mimetype === SVG_TYPE),
+  contentAllowed: (_req, file, buffer) => file.mimetype === SVG_TYPE
+    ? isSvgFile(buffer)
+    : isSupportedFile(buffer),
   fileBytes: () => 8 * MB,
   totalBytes: 8 * MB,
   files: 1,
