@@ -209,15 +209,20 @@ test("upload signature generation signs folder and timestamp", async () => {
   process.env.CLOUDINARY_API_SECRET = "test-api-secret";
   process.env.CLOUDINARY_CLOUD_NAME = "test-cloud";
   const result = response();
-  await getUploadSignature({ query: { type: "cover" }, user: { id: "user-1" } }, result.res);
+  await getUploadSignature({ query: { type: "cover" }, user: { id: "user-1" }, userRole: "MEMBER" }, result.res);
   assert.equal(result.status, 200);
   assert.equal(result.body.success, true);
   assert.equal(result.body.data.apiKey, "test-api-key");
   assert.equal(result.body.data.cloudName, "test-cloud");
   assert.equal(result.body.data.folder, "share-ed/users/user-1/posts/covers");
-  assert.equal(result.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,webp,apng");
+  assert.equal(result.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,apng");
   assert.ok(typeof result.body.data.signature === "string");
   assert.ok(typeof result.body.data.timestamp === "number");
+
+  const adminResult = response();
+  await getUploadSignature({ query: { type: "cover" }, user: { id: "admin-1" }, userRole: "ADMIN" }, adminResult.res);
+  assert.equal(adminResult.status, 200);
+  assert.equal(adminResult.body.data.uploadParams.allowed_formats, "jpg,jpeg,png,apng,webp,gif");
 });
 
 test("upload signature rejects unknown upload types", async () => {
