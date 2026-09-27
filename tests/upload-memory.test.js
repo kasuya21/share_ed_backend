@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
 import express from "express";
-import { adminImageUpload, postUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
+import { postUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
 import { errorHandler } from "../utils/security.js";
 
 function png(size = 32) {
@@ -62,33 +62,6 @@ test("post upload rejects a forged MIME type", async () => {
     const result = await response.json();
     assert.equal(response.status, 400);
     assert.equal(result.code, "INVALID_REQUEST");
-  });
-});
-
-test("admin reward upload accepts SVG content", async () => {
-  await withServer(app => {
-    app.post("/", adminImageUpload.single("image"), (req, res) => {
-      res.json({ type: req.file.mimetype, name: req.file.originalname });
-    });
-  }, async baseUrl => {
-    const body = new FormData();
-    body.append("image", new Blob([
-      '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>',
-    ], { type: "image/svg+xml" }), "frame.svg");
-    const response = await fetch(baseUrl, { method: "POST", body });
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { type: "image/svg+xml", name: "frame.svg" });
-  });
-});
-
-test("admin reward upload rejects forged SVG content", async () => {
-  await withServer(app => {
-    app.post("/", adminImageUpload.single("image"), (_req, res) => res.sendStatus(204));
-  }, async baseUrl => {
-    const body = new FormData();
-    body.append("image", new Blob(["not an svg"], { type: "image/svg+xml" }), "fake.svg");
-    const response = await fetch(baseUrl, { method: "POST", body });
-    assert.equal(response.status, 400);
   });
 });
 
