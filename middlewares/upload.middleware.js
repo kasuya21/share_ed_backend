@@ -4,8 +4,10 @@ import { v2 as cloudinary } from "cloudinary";
 import { isSupportedFile } from "../utils/upload-validation.js";
 
 const MB = 1024 * 1024;
-const IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
-const ADMIN_IMAGE_TYPES = new Set([...IMAGE_TYPES, "image/apng"]);
+const IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/apng"]);
+const GIF_TYPE = "image/gif";
+const WEBP_TYPE = "image/webp";
+const ADMIN_IMAGE_TYPES = new Set([...IMAGE_TYPES, GIF_TYPE, WEBP_TYPE]);
 const PDF_TYPE = "application/pdf";
 const VIDEO_TYPE = "video/mp4";
 const ALL_TYPES = new Set([...IMAGE_TYPES, PDF_TYPE, VIDEO_TYPE]);
@@ -83,32 +85,41 @@ function createUpload({ allowed, totalBytes, fileBytes, files, fields = 30 }) {
     },
     fileFilter(req, file, callback) {
       file.originalname = Buffer.from(file.originalname, "latin1").toString("utf8");
-      if (allowed(file)) return callback(null, true);
+      if (allowed(req, file)) return callback(null, true);
       callback(uploadError("INVALID_UPLOAD", "Unsupported file type"), false);
     },
   });
 }
 
 export const postUpload = createUpload({
-  allowed: file => file.fieldname === "cover_image"
-    ? IMAGE_TYPES.has(file.mimetype)
-    : file.fieldname === "media_files" && (IMAGE_TYPES.has(file.mimetype) || file.mimetype === PDF_TYPE),
+  allowed: (req, file) => {
+    const imageAllowed = IMAGE_TYPES.has(file.mimetype)
+      || (req.userRole === "ADMIN" && [GIF_TYPE, WEBP_TYPE].includes(file.mimetype));
+    return file.fieldname === "cover_image"
+      ? imageAllowed
+      : file.fieldname === "media_files" && (imageAllowed || file.mimetype === PDF_TYPE);
+  },
   fileBytes: file => file.mimetype === PDF_TYPE ? 21 * MB : 2 * MB,
   totalBytes: positiveInteger(process.env.POST_UPLOAD_TOTAL_MB, 50, 64) * MB,
   files: 16,
 });
 
 export const profileMediaUpload = createUpload({
-  allowed: file => file.fieldname === "wallpaper"
-    ? IMAGE_TYPES.has(file.mimetype) || file.mimetype === VIDEO_TYPE
-    : IMAGE_TYPES.has(file.mimetype),
+  allowed: (req, file) => {
+    const animatedFormatAllowed = file.fieldname === "wallpaper" || req.userRole === "ADMIN";
+    const imageAllowed = IMAGE_TYPES.has(file.mimetype)
+      || (animatedFormatAllowed && [GIF_TYPE, WEBP_TYPE].includes(file.mimetype));
+    return file.fieldname === "wallpaper"
+      ? imageAllowed || file.mimetype === VIDEO_TYPE
+      : imageAllowed;
+  },
   fileBytes: file => file.fieldname === "wallpaper" ? 25 * MB : 8 * MB,
   totalBytes: positiveInteger(process.env.PROFILE_UPLOAD_TOTAL_MB, 41, 64) * MB,
   files: 3,
 });
 
 export const adminImageUpload = createUpload({
-  allowed: file => file.fieldname === "image" && ADMIN_IMAGE_TYPES.has(file.mimetype),
+  allowed: (_req, file) => file.fieldname === "image" && ADMIN_IMAGE_TYPES.has(file.mimetype),
   fileBytes: () => 8 * MB,
   totalBytes: 8 * MB,
   files: 1,
@@ -116,7 +127,9 @@ export const adminImageUpload = createUpload({
 
 // Backward-compatible export for routes outside the explicit policies.
 export const upload = createUpload({
-  allowed: file => ALL_TYPES.has(file.mimetype),
+  allowed: (req, file) => ALL_TYPES.has(file.mimetype)
+    || ((req.userRole === "ADMIN" || file.fieldname === "wallpaper")
+      && [GIF_TYPE, WEBP_TYPE].includes(file.mimetype)),
   fileBytes: () => 25 * MB,
   totalBytes: 25 * MB,
   files: 1,

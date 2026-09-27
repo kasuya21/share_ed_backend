@@ -1,13 +1,19 @@
 const EDUCATION_LEVELS = ["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"];
-export const POST_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/apng"];
+export const POST_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/apng"];
 export const POST_MEDIA_TYPES = [...POST_IMAGE_TYPES, "application/pdf"];
+export const POST_GIF_TYPE = "image/gif";
+export const POST_WEBP_TYPE = "image/webp";
 
 function parseJson(value) {
   if (typeof value !== "string") return value;
   try { return JSON.parse(value); } catch { return undefined; }
 }
 
-export function validateNewPost(body, files) {
+export function validateNewPost(body, files, { role } = {}) {
+  const allowedImageTypes = role === "ADMIN"
+    ? [...POST_IMAGE_TYPES, POST_WEBP_TYPE, POST_GIF_TYPE]
+    : POST_IMAGE_TYPES;
+  const allowedMediaTypes = [...allowedImageTypes, "application/pdf"];
   const isDraft = body?.post_status === "DRAFT";
   const result = isDraft
     ? {
@@ -39,8 +45,10 @@ export function validateNewPost(body, files) {
 
   if (!isDraft && !hasCoverFile && !hasDirectCover && !hasCoverAsset) {
     result.errors.cover_image = { code: "REQUIRED", message: "กรุณาอัปโหลดรูปปก" };
-  } else if (hasCoverFile && (files.cover_image.length !== 1 || !POST_IMAGE_TYPES.includes(files.cover_image[0].mimetype))) {
-    result.errors.cover_image = { code: "INVALID_TYPE", message: "รูปปกต้องเป็นรูปภาพ JPG, PNG, APNG หรือ WebP จำนวน 1 ไฟล์" };
+  } else if (hasCoverFile && (files.cover_image.length !== 1 || !allowedImageTypes.includes(files.cover_image[0].mimetype))) {
+    result.errors.cover_image = { code: "INVALID_TYPE", message: role === "ADMIN"
+      ? "รูปปกต้องเป็นรูปภาพ JPG, PNG, APNG, WebP หรือ GIF จำนวน 1 ไฟล์"
+      : "รูปปกต้องเป็นรูปภาพ JPG, PNG หรือ APNG จำนวน 1 ไฟล์" };
   }
 
   const hasMediaFiles = Boolean(files?.media_files?.length);
@@ -54,8 +62,10 @@ export function validateNewPost(body, files) {
 
   if (!isDraft && !hasMediaFiles && !hasDirectMedia && !hasMediaAssets) {
     result.errors.media_files = { code: "REQUIRED", message: "กรุณาแนบไฟล์ PDF หรือรูปภาพอย่างน้อย 1 ไฟล์" };
-  } else if (hasMediaFiles && files.media_files.some(file => !POST_MEDIA_TYPES.includes(file.mimetype))) {
-    result.errors.media_files = { code: "INVALID_TYPE", message: "ไฟล์แนบต้องเป็น PDF หรือรูปภาพ JPG, PNG, APNG, WebP เท่านั้น" };
+  } else if (hasMediaFiles && files.media_files.some(file => !allowedMediaTypes.includes(file.mimetype))) {
+    result.errors.media_files = { code: "INVALID_TYPE", message: role === "ADMIN"
+      ? "ไฟล์แนบต้องเป็น PDF หรือรูปภาพ JPG, PNG, APNG, WebP, GIF เท่านั้น"
+      : "ไฟล์แนบต้องเป็น PDF หรือรูปภาพ JPG, PNG, APNG เท่านั้น" };
   }
   result.valid = Object.keys(result.errors).length === 0;
   return result;

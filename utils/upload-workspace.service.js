@@ -146,6 +146,7 @@ function formatSessionResponse(session) {
  */
 export async function signUploadFile({
   userId,
+  userRole,
   sessionId,
   clientFileId,
   assetType,
@@ -153,6 +154,12 @@ export async function signUploadFile({
   contentType,
   size,
 }) {
+  const allowedImageFormats = userRole === "ADMIN"
+    ? [...ALLOWED_IMAGE_FORMATS, "gif"]
+    : ALLOWED_IMAGE_FORMATS.filter(format => format !== "webp");
+  const allowedImageMimes = userRole === "ADMIN"
+    ? [...ALLOWED_IMAGE_MIMES, "image/gif"]
+    : ALLOWED_IMAGE_MIMES.filter(mime => mime !== "image/webp");
   if (!isValidUuid(sessionId)) {
     throw new UploadWorkspaceError(
       UPLOAD_ERROR_CODES.INVALID_UPLOAD_SESSION,
@@ -196,7 +203,7 @@ export async function signUploadFile({
   // 1. Idempotency Check: if (session_id, client_file_id) already exists, return existing signed info
   const existingAsset = session.assets.find(a => a.client_file_id === clientFileId);
   if (existingAsset) {
-    return await buildSignResponse(existingAsset, userId, sessionId);
+    return await buildSignResponse(existingAsset, userId, sessionId, { allowGif: userRole === "ADMIN" });
   }
 
   // 2. Validate Asset Type
@@ -277,10 +284,12 @@ export async function signUploadFile({
       );
     }
   } else {
-    if (!ALLOWED_IMAGE_FORMATS.includes(ext) || (!ALLOWED_IMAGE_MIMES.includes(safeContentType) && safeContentType)) {
+    if (!allowedImageFormats.includes(ext) || (!allowedImageMimes.includes(safeContentType) && safeContentType)) {
       throw new UploadWorkspaceError(
         UPLOAD_ERROR_CODES.INVALID_IMAGE,
-        "ชนิดไฟล์รูปภาพต้องเป็น JPG, PNG, WEBP หรือ APNG เท่านั้น",
+        userRole === "ADMIN"
+          ? "ชนิดไฟล์รูปภาพต้องเป็น JPG, PNG, WEBP, APNG หรือ GIF เท่านั้น"
+          : "ชนิดไฟล์รูปภาพต้องเป็น JPG, PNG หรือ APNG เท่านั้น",
         400
       );
     }
@@ -307,7 +316,7 @@ export async function signUploadFile({
       public_id: publicId,
       timestamp,
       return_delete_token: true,
-      allowed_formats: ALLOWED_IMAGE_FORMATS.join(","),
+      allowed_formats: allowedImageFormats.join(","),
     };
 
     const signature = cloudinary.utils.api_sign_request(
@@ -324,7 +333,7 @@ export async function signUploadFile({
       folder,
       public_id: publicId,
       resource_type: "image",
-      allowed_formats: ALLOWED_IMAGE_FORMATS,
+      allowed_formats: allowedImageFormats,
     };
   } else {
     // SUPABASE PDF
@@ -392,7 +401,7 @@ export async function signUploadFile({
       },
     });
     if (!winner) throw error;
-    return await buildSignResponse(winner, userId, sessionId);
+    return await buildSignResponse(winner, userId, sessionId, { allowGif: userRole === "ADMIN" });
   }
 
   // Touch session
@@ -417,7 +426,10 @@ export async function signUploadFile({
   };
 }
 
-async function buildSignResponse(asset, userId, sessionId) {
+async function buildSignResponse(asset, userId, sessionId, { allowGif = false } = {}) {
+  const allowedImageFormats = allowGif
+    ? [...ALLOWED_IMAGE_FORMATS, "gif"]
+    : ALLOWED_IMAGE_FORMATS.filter(format => format !== "webp");
   const safeUserId = String(userId).replace(/[^a-zA-Z0-9_-]/g, "_");
   if (asset.provider === "CLOUDINARY") {
     const subfolder = asset.asset_type === "COVER" ? "covers" : "media";
@@ -428,7 +440,7 @@ async function buildSignResponse(asset, userId, sessionId) {
       public_id: asset.public_id,
       timestamp,
       return_delete_token: true,
-      allowed_formats: ALLOWED_IMAGE_FORMATS.join(","),
+      allowed_formats: allowedImageFormats.join(","),
     };
     const signature = cloudinary.utils.api_sign_request(
       signParams,
@@ -450,7 +462,7 @@ async function buildSignResponse(asset, userId, sessionId) {
         folder,
         public_id: asset.public_id,
         resource_type: "image",
-        allowed_formats: ALLOWED_IMAGE_FORMATS,
+        allowed_formats: allowedImageFormats,
       },
     };
   }
@@ -489,6 +501,7 @@ async function buildSignResponse(asset, userId, sessionId) {
  */
 export async function completeAndVerifyAssetCore({
   userId,
+  userRole,
   sessionId,
   assetId,
   clientPayload,
@@ -503,7 +516,11 @@ export async function completeAndVerifyAssetCore({
 
   const asset = await prisma.uploadAsset.findUnique({
     where: { id: assetId },
-    include: { upload_session: true },
+    include: {
+      upload_session: {
+        include: { user: { select: { role: true } } },
+      },
+    },
   });
 
   if (!asset || asset.upload_session_id !== sessionId) {
@@ -639,7 +656,11 @@ export async function completeAndVerifyAssetCore({
       }
 
       const authoritativeFormat = String(authoritative.format || "").toLowerCase();
-      if (!ALLOWED_IMAGE_FORMATS.includes(authoritativeFormat)) {
+      const effectiveUserRole = asset.upload_session.user?.role || userRole;
+      const allowedImageFormats = effectiveUserRole === "ADMIN"
+        ? [...ALLOWED_IMAGE_FORMATS, "gif"]
+        : ALLOWED_IMAGE_FORMATS.filter(format => format !== "webp");
+      if (!allowedImageFormats.includes(authoritativeFormat)) {
         throw new UploadWorkspaceError(
           UPLOAD_ERROR_CODES.INVALID_IMAGE,
           "ฟอร์แมตของรูปภาพไม่ถูกต้อง",
