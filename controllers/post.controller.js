@@ -91,6 +91,16 @@ const TRENDING_WINDOWS_MS = Object.freeze({
   "30d": 30 * 24 * 60 * 60 * 1000,
 });
 const TRENDING_LEVELS = new Set(["MIDDLE_SCHOOL", "HIGH_SCHOOL", "UNIVERSITY"]);
+const BANGKOK_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+// Thailand has no daylight-saving time. Use a fixed UTC+07 offset so the
+// weekly Trending window always begins on Sunday at 00:00 Asia/Bangkok.
+function getBangkokWeekStart(now = new Date()) {
+  const bangkokTime = new Date(now.getTime() + BANGKOK_UTC_OFFSET_MS);
+  bangkokTime.setUTCHours(0, 0, 0, 0);
+  bangkokTime.setUTCDate(bangkokTime.getUTCDate() - bangkokTime.getUTCDay());
+  return new Date(bangkokTime.getTime() - BANGKOK_UTC_OFFSET_MS);
+}
 
 function positiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number.parseInt(value, 10);
@@ -1911,13 +1921,16 @@ export const getTrendingPosts = async (req, res) => {
       });
     }
 
-    const cacheKey = `${level || "ALL"}:${requestedWindow}:${parsedLimit}`;
+    const windowStartedAt = requestedWindow === "7d"
+      ? getBangkokWeekStart(new Date(Date.now()))
+      : new Date(Date.now() - TRENDING_WINDOWS_MS[requestedWindow]);
+    // Include the fixed-week boundary so an old cached ranking is never used
+    // after the Sunday 00:00 (Asia/Bangkok) reset.
+    const cacheKey = `${level || "ALL"}:${requestedWindow}:${parsedLimit}:${windowStartedAt.toISOString()}`;
     const cached = trendingPostsCache.get(cacheKey);
     if (cached) {
       return res.status(200).json({ success: true, ...cached });
     }
-
-    const windowStartedAt = new Date(Date.now() - TRENDING_WINDOWS_MS[requestedWindow]);
 
     // One PostView row per user/post means this ranks unique recent viewers.
     // Resolve equal counts by the latest view, then post id for stable results.

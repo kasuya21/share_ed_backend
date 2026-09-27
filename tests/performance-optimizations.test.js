@@ -292,6 +292,21 @@ test("trending ranks unique viewers inside the requested recent window", async t
   assert.equal(result.body.meta.fallback, null);
 });
 
+test("trending 7d starts at Sunday midnight in Asia/Bangkok", async t => {
+  trendingPostsCache.clear();
+  t.mock.method(Date, "now", () => Date.parse("2026-09-28T05:00:00.000Z"));
+  const groupBy = replace(t, prisma.postView, "groupBy", async () => []);
+  replace(t, prisma.post, "findMany", async () => []);
+  const result = response();
+
+  await getTrendingPosts({ query: { window: "7d" } }, result.res);
+
+  const query = groupBy.mock.calls[0].arguments[0];
+  // Sunday 2026-09-27 00:00 in Bangkok is Saturday 17:00 UTC.
+  assert.equal(query.where.viewed_at.gte.toISOString(), "2026-09-26T17:00:00.000Z");
+  assert.equal(result.body.meta.window_started_at, "2026-09-26T17:00:00.000Z");
+});
+
 test("trending validates window and limit before querying", async t => {
   trendingPostsCache.clear();
   const groupBy = replace(t, prisma.postView, "groupBy", async () => []);
