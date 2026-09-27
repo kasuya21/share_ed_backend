@@ -158,7 +158,7 @@ test("unit: rejects invalid MIME, extension, and file size", async t => {
       contentType: "application/x-msdownload",
       size: 1024,
     }),
-    /JPG, PNG, WEBP/
+    /JPG, PNG หรือ APNG/
   );
 
   // Oversized image (> 2MB)

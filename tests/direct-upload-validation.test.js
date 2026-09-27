@@ -22,7 +22,7 @@ function imageAsset(overrides = {}) {
 test("direct upload parameters isolate files by user and restrict formats", () => {
   assert.deepEqual(directUploadParams("cover", "user-1", 123), {
     return_delete_token: true,
-    allowed_formats: "jpg,jpeg,png,webp,apng",
+    allowed_formats: "jpg,jpeg,png,apng",
     folder: "share-ed/users/user-1/posts/covers",
     timestamp: 123,
   });
@@ -36,6 +36,42 @@ test("direct upload parameters isolate files by user and restrict formats", () =
     directUploadParams("cover", "user-1", 123, "session-1").folder,
     "share-ed/users/user-1/upload-sessions/session-1/covers"
   );
+  assert.equal(
+    directUploadParams("cover", "user-1", 123, undefined, { allowGif: true }).allowed_formats,
+    "jpg,jpeg,png,apng,webp,gif"
+  );
+});
+
+test("direct upload accepts GIF only when the caller is authorized", () => {
+  const gif = imageAsset({
+    format: "gif",
+    secure_url: "https://res.cloudinary.com/test-cloud/image/upload/v1700000000/share-ed/users/user-1/posts/covers/cover-id.gif",
+  });
+  const options = {
+    type: "cover",
+    userId: "user-1",
+    cloudName: "test-cloud",
+    field: "cover_upload",
+    verifySignature: () => true,
+  };
+  assert.throws(() => verifyDirectUploadAsset(gif, options), DirectUploadValidationError);
+  assert.equal(verifyDirectUploadAsset(gif, { ...options, allowGif: true }).media_type, "IMAGE");
+});
+
+test("direct upload accepts WebP only when the caller is authorized", () => {
+  const webp = imageAsset({
+    format: "webp",
+    secure_url: "https://res.cloudinary.com/test-cloud/image/upload/v1700000000/share-ed/users/user-1/posts/covers/cover-id.webp",
+  });
+  const options = {
+    type: "cover",
+    userId: "user-1",
+    cloudName: "test-cloud",
+    field: "cover_upload",
+    verifySignature: () => true,
+  };
+  assert.throws(() => verifyDirectUploadAsset(webp, options), DirectUploadValidationError);
+  assert.equal(verifyDirectUploadAsset(webp, { ...options, allowGif: true }).media_type, "IMAGE");
 });
 
 test("verified Cloudinary metadata is converted to post media", () => {

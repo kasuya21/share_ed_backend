@@ -75,6 +75,7 @@ export async function signFileHandler(req, res) {
 
     const result = await signUploadFile({
       userId,
+      userRole: req.userRole,
       sessionId,
       clientFileId,
       assetType,
@@ -104,6 +105,7 @@ export async function completeFileHandler(req, res) {
 
     const verifiedAsset = await completeAndVerifyAssetCore({
       userId,
+      userRole: req.userRole,
       sessionId,
       assetId,
       clientPayload,

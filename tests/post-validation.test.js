@@ -33,9 +33,15 @@ test('New posts require all fields, a separate cover and at least one attachment
  const image={mimetype:'image/png'};
  assert.equal(validateNewPost(body,{cover_image:[image]}).errors.media_files.code,'REQUIRED');
  assert.equal(validateNewPost(body,{media_files:[image]}).errors.cover_image.code,'REQUIRED');
- for(const mimetype of ['application/pdf','image/jpeg','image/png','image/webp']) assert.equal(validateNewPost(body,{cover_image:[image],media_files:[{mimetype}]}).valid,true);
+ for(const mimetype of ['application/pdf','image/jpeg','image/png','image/apng']) assert.equal(validateNewPost(body,{cover_image:[image],media_files:[{mimetype}]}).valid,true);
  assert.equal(validateNewPost(body,{cover_image:[{mimetype:'application/pdf'}],media_files:[image]}).valid,false);
  assert.equal(validateNewPost(body,{cover_image:[image],media_files:[{mimetype:'video/mp4'}]}).valid,false);
+ const gif={mimetype:'image/gif'};
+ assert.equal(validateNewPost(body,{cover_image:[gif],media_files:[image]}).valid,false);
+ assert.equal(validateNewPost(body,{cover_image:[gif],media_files:[gif]},{role:'ADMIN'}).valid,true);
+ const webp={mimetype:'image/webp'};
+ assert.equal(validateNewPost(body,{cover_image:[webp],media_files:[image]}).valid,false);
+ assert.equal(validateNewPost(body,{cover_image:[webp],media_files:[webp]},{role:'ADMIN'}).valid,true);
 });
 
 test('Draft posts may be saved before category and files are complete',async()=>{

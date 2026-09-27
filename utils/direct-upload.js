@@ -10,6 +10,12 @@ export const DIRECT_UPLOAD_POLICIES = Object.freeze({
   pdf: Object.freeze({ resourceType: "raw", formats: ["pdf"], maxBytes: 21 * MB, folder: "pdfs" }),
 });
 
+function allowedFormats(policy, allowGif = false) {
+  if (policy.resourceType !== "image") return policy.formats;
+  const memberFormats = policy.formats.filter(format => format !== "webp");
+  return allowGif ? [...memberFormats, "webp", "gif"] : memberFormats;
+}
+
 export class DirectUploadValidationError extends Error {
   constructor(message, field = "media_uploads") {
     super(message);
@@ -30,10 +36,10 @@ export function directUploadFolder(type, userId, sessionId) {
     : `share-ed/users/${safeUserId}/posts/${policy.folder}`;
 }
 
-export function directUploadParams(type, userId, timestamp, sessionId) {
+export function directUploadParams(type, userId, timestamp, sessionId, { allowGif = false } = {}) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   return {
-    allowed_formats: policy.formats.join(","),
+    allowed_formats: allowedFormats(policy, allowGif).join(","),
     return_delete_token: true,
     folder: directUploadFolder(type, userId, sessionId),
     timestamp,
@@ -47,7 +53,7 @@ function requiredString(asset, key, field) {
   return asset[key];
 }
 
-export function verifyDirectUploadAsset(asset, { type, userId, sessionId, cloudName, verifySignature, field }) {
+export function verifyDirectUploadAsset(asset, { type, userId, sessionId, cloudName, verifySignature, field, allowGif = false }) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
   if (!policy || !asset || typeof asset !== "object" || Array.isArray(asset)) {
     throw new DirectUploadValidationError("ข้อมูลไฟล์ที่อัปโหลดไม่ถูกต้อง", field);
@@ -64,7 +70,7 @@ export function verifyDirectUploadAsset(asset, { type, userId, sessionId, cloudN
   if (!Number.isSafeInteger(version) || version <= 0 || !Number.isSafeInteger(bytes) || bytes <= 0) {
     throw new DirectUploadValidationError("ข้อมูลเวอร์ชันหรือขนาดไฟล์ไม่ถูกต้อง", field);
   }
-  if (resourceType !== policy.resourceType || !policy.formats.includes(format)) {
+  if (resourceType !== policy.resourceType || !allowedFormats(policy, allowGif).includes(format)) {
     throw new DirectUploadValidationError("ชนิดไฟล์ที่อัปโหลดไม่ถูกต้อง", field);
   }
   if (bytes > policy.maxBytes) {

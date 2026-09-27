@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { logError, logWarn } from "../utils/logger.js";
-import { validatePostFields, validateNewPost, POST_MEDIA_TYPES } from "../utils/post-validation.js";
+import { validatePostFields, validateNewPost, POST_MEDIA_TYPES, POST_GIF_TYPE, POST_WEBP_TYPE } from "../utils/post-validation.js";
 import { prisma } from "../configs/prisma.js";
 import { getIO } from "../configs/socket.js";
 import { createNotification } from "../utils/notification.helper.js";
@@ -80,6 +80,9 @@ async function findCreatedPost(authorId, idempotencyKey) {
 
 // Allowed MIME types: PNG, JPG, JPEG, PDF
 const ALLOWED_MIME_TYPES = POST_MEDIA_TYPES;
+const allowedPostMimeTypes = role => role === "ADMIN"
+  ? [...ALLOWED_MIME_TYPES, POST_WEBP_TYPE, POST_GIF_TYPE]
+  : ALLOWED_MIME_TYPES;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const TRENDING_WINDOWS_MS = Object.freeze({
@@ -554,7 +557,7 @@ export const createPost = async (req, res) => {
     const mediaAssetIds = Array.isArray(parsedMediaAssetIds)
       ? parsedMediaAssetIds
       : Array.isArray(rawMediaAssetIds) ? rawMediaAssetIds : [];
-    const validation = validateNewPost(req.body, req.files);
+    const validation = validateNewPost(req.body, req.files, { role: req.userRole });
     const { title, summary, education_level } = validation.values;
     let { category_id } = validation.values;
     const author_id = req.user.id;
@@ -694,6 +697,13 @@ export const createPost = async (req, res) => {
               UPLOAD_ERROR_CODES.UPLOAD_VERIFICATION_FAILED,
               `ไฟล์ ${asset.original_name || asset.id} ยังไม่ได้รับการตรวจสอบ (สถานะ: ${asset.status})`,
               400
+            );
+          }
+          if (req.userRole !== "ADMIN" && [POST_GIF_TYPE, POST_WEBP_TYPE].includes(asset.mime_type)) {
+            throw new UploadWorkspaceError(
+              UPLOAD_ERROR_CODES.INVALID_IMAGE,
+              "บัญชีสมาชิกไม่สามารถแนบ GIF หรือ WebP ในโพสต์ได้",
+              403
             );
           }
         }
@@ -941,6 +951,7 @@ export const createPost = async (req, res) => {
           cloudName: process.env.CLOUDINARY_CLOUD_NAME,
           verifySignature: (publicId, version, signature) =>
             cloudinary.utils.verify_api_response_signature(publicId, version, signature),
+          allowGif: req.userRole === "ADMIN",
         };
         const cloudinaryAssets = [
           ...(directCover ? [{ asset: directCover, type: "cover", field: "cover_upload", isCover: true }] : []),
@@ -1365,6 +1376,13 @@ export const updatePost = async (req, res) => {
             400
           );
         }
+        if (req.userRole !== "ADMIN" && [POST_GIF_TYPE, POST_WEBP_TYPE].includes(asset.mime_type)) {
+          throw new UploadWorkspaceError(
+            UPLOAD_ERROR_CODES.INVALID_IMAGE,
+            "บัญชีสมาชิกไม่สามารถแนบ GIF หรือ WebP ในโพสต์ได้",
+            403
+          );
+        }
       }
       const totalBytes = workspaceAssets.reduce((sum, asset) => sum + (Number(asset.file_size) || 0), 0);
       if (totalBytes > UPLOAD_WORKSPACE_LIMITS.MAX_TOTAL_BYTES) {
@@ -1412,8 +1430,9 @@ export const updatePost = async (req, res) => {
 
     // 1. ตรวจสอบไฟล์มัลติมีเดียชนิดต่างๆ
     const coverFiles = req.files?.cover_image;
+    const allowedMimeTypes = allowedPostMimeTypes(req.userRole);
     if (coverFiles && coverFiles.length > 0) {
-      if (coverFiles[0].mimetype === "application/pdf" || !ALLOWED_MIME_TYPES.includes(coverFiles[0].mimetype)) {
+      if (coverFiles[0].mimetype === "application/pdf" || !allowedMimeTypes.includes(coverFiles[0].mimetype)) {
         return res.status(400).json({
           success: false,
           message: "ประเภทไฟล์รูปภาพหน้าปกไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG)"
@@ -1425,7 +1444,7 @@ export const updatePost = async (req, res) => {
     validatePostAttachmentCounts(mediaFiles);
     if (mediaFiles && mediaFiles.length > 0) {
       for (const file of mediaFiles) {
-        if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+        if (!allowedMimeTypes.includes(file.mimetype)) {
           return res.status(400).json({
             success: false,
             message: "ประเภทไฟล์แนบประกอบไม่ถูกต้อง (รองรับเฉพาะ PNG, JPG, JPEG, PDF)"
@@ -2089,9 +2108,9 @@ function getCloudinaryUploadConfig() {
   return { cloudName, apiKey, apiSecret };
 }
 
-function directUploadSignature(type, timestamp, userId, sessionId) {
+function directUploadSignature(type, timestamp, userId, sessionId, { allowGif = false } = {}) {
   const policy = DIRECT_UPLOAD_POLICIES[type];
-  const paramsToSign = directUploadParams(type, userId, timestamp, sessionId);
+  const paramsToSign = directUploadParams(type, userId, timestamp, sessionId, { allowGif });
   const { cloudName, apiKey, apiSecret } = getCloudinaryUploadConfig();
   return {
     type,
@@ -2119,7 +2138,9 @@ export const getUploadSignature = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: directUploadSignature(type, timestamp, req.user.id),
+      data: directUploadSignature(type, timestamp, req.user.id, undefined, {
+        allowGif: req.userRole === "ADMIN",
+      }),
     });
   } catch (error) {
     logError("controllers.getUploadSignature", error, req);
@@ -2168,7 +2189,9 @@ export const getUploadSignatures = async (req, res) => {
       },
     });
     const uploads = Object.fromEntries(
-      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp, req.user.id, sessionId)])
+      uniqueTypes.map(type => [type, directUploadSignature(type, timestamp, req.user.id, sessionId, {
+        allowGif: req.userRole === "ADMIN",
+      })])
     );
     return res.status(200).json({
       success: true,
