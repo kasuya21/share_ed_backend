@@ -305,10 +305,10 @@ test("integration: Supabase PDF verification rejects invalid magic bytes and ove
   replace(t, prisma.uploadAsset, "updateMany", async () => ({ count: 1 }));
   replace(t, prisma.uploadAsset, "update", async () => ({}));
 
-  // 1. Oversized PDF (> 20MB)
+  // 1. Oversized PDF (> 21 MiB)
   replace(t, supabaseAdmin.storage, "from", () => ({
     info: async () => ({
-      data: { size: 21 * 1024 * 1024, contentType: "application/pdf" },
+      data: { size: (21 * 1024 * 1024) + 1, contentType: "application/pdf" },
       error: null,
     }),
     download: async () => ({ data: Buffer.from("%PDF-"), error: null }),
@@ -324,7 +324,7 @@ test("integration: Supabase PDF verification rejects invalid magic bytes and ove
         path: validStoragePath,
       },
     }),
-    /PDF เกิน 20 MB/
+    /PDF เกิน 21 MB/
   );
 
   // 2. Corrupt / invalid magic bytes (e.g. text file pretending to be PDF)
