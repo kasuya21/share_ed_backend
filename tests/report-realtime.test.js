@@ -8,6 +8,8 @@ const { initIO } = await import("../configs/socket.js");
 const { joinOwnRoom } = await import("../middlewares/socket.middleware.js");
 const { reportPost } = await import("../controllers/report.controller.js");
 const { actionOnPost } = await import("../controllers/moderator.controller.js");
+const { deletePostPermanently } = await import("../utils/post-deletion.js");
+const { getBookmarks } = await import("../controllers/bookmark.controller.js");
 
 function replace(t, object, key, value) {
   const original = object[key];
@@ -153,4 +155,65 @@ test("a moderator can approve a reported post and clear its reports", async (t) 
   assert.deepEqual(update.mock.calls[0].arguments[0].data, { post_status: "ACTIVE" });
   const reviewEvent = events.find((entry) => entry.event === "report_reviewed");
   assert.deepEqual(reviewEvent.payload, { postId: "post-reported", action: "APPROVE" });
+});
+
+test("permanent post deletion removes bookmarks and notifies affected users", async (t) => {
+  const events = socketRecorder(t);
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-deleted",
+    author_id: "owner-1",
+    title: "Deleted post",
+    cover_image: null,
+    content: "",
+    media: [],
+  }));
+  replace(t, prisma.like, "findMany", async () => []);
+  replace(t, prisma.comment, "findMany", async () => []);
+  replace(t, prisma.bookmark, "findMany", async () => [
+    { user_id: "bookmark-user-1" },
+    { user_id: "bookmark-user-2" },
+  ]);
+  const deleteBookmarks = replace(t, prisma.bookmark, "deleteMany", async () => ({ count: 2 }));
+  const deletePost = replace(t, prisma.post, "delete", async () => ({ id: "post-deleted" }));
+  replace(t, prisma, "$transaction", async (operations) => Promise.all(operations));
+  replace(t, prisma.post, "count", async () => 0);
+  replace(t, prisma.like, "count", async () => 0);
+  replace(t, prisma.achievement, "findMany", async () => []);
+
+  await deletePostPermanently("post-deleted");
+
+  assert.deepEqual(deleteBookmarks.mock.calls[0].arguments[0], {
+    where: { post_id: "post-deleted" },
+  });
+  assert.deepEqual(deletePost.mock.calls[0].arguments[0], {
+    where: { id: "post-deleted" },
+  });
+  const deletedEvents = events.filter((entry) => entry.event === "post_deleted");
+  assert.deepEqual(deletedEvents.map((entry) => entry.room).sort(), [
+    "user:bookmark-user-1",
+    "user:bookmark-user-2",
+    "user:owner-1",
+  ]);
+  assert.ok(deletedEvents.every((entry) => entry.payload.postId === "post-deleted"));
+});
+
+test("bookmark lists never return deleted or inactive posts", async (t) => {
+  const findMany = replace(t, prisma.bookmark, "findMany", async () => []);
+
+  for (const idsOnly of [undefined, "true"]) {
+    const { response, res } = responseRecorder();
+    await getBookmarks({
+      user: { id: "bookmark-user-1" },
+      query: { ...(idsOnly && { idsOnly }) },
+    }, res);
+    assert.equal(response.status, 200);
+  }
+
+  assert.equal(findMany.mock.callCount(), 2);
+  for (const call of findMany.mock.calls) {
+    assert.deepEqual(call.arguments[0].where, {
+      user_id: "bookmark-user-1",
+      post: { post_status: "ACTIVE" },
+    });
+  }
 });

@@ -4,6 +4,7 @@ import { extractPublicId } from "./cloudinary.helper.js";
 import { deleteSupabasePdfObject } from "./supabase-storage.js";
 import { logWarn } from "./logger.js";
 import { updateAchievementProgress } from "./achievement.helper.js";
+import { getIO } from "../configs/socket.js";
 
 async function destroyAsset(url, resourceType, postId) {
   const publicId = extractPublicId(url, resourceType);
@@ -19,7 +20,7 @@ async function destroyAsset(url, resourceType, postId) {
 }
 
 export async function deletePostPermanently(postId) {
-  const [post, affectedLikes, affectedComments] = await Promise.all([
+  const [post, affectedLikes, affectedComments, affectedBookmarks] = await Promise.all([
     prisma.post.findUnique({
       where: { id: postId },
       select: {
@@ -46,6 +47,11 @@ export async function deletePostPermanently(postId) {
       distinct: ["user_id"],
     }),
     prisma.comment.findMany({
+      where: { post_id: postId },
+      select: { user_id: true },
+      distinct: ["user_id"],
+    }),
+    prisma.bookmark.findMany({
       where: { post_id: postId },
       select: { user_id: true },
       distinct: ["user_id"],
@@ -101,7 +107,21 @@ export async function deletePostPermanently(postId) {
     }
   }
 
-  await prisma.post.delete({ where: { id: postId } });
+  // Delete bookmarks explicitly so production databases created before the
+  // Prisma relation used ON DELETE CASCADE cannot retain stale rows.
+  await prisma.$transaction([
+    prisma.bookmark.deleteMany({ where: { post_id: postId } }),
+    prisma.post.delete({ where: { id: postId } }),
+  ]);
+
+  const io = getIO();
+  const affectedUserIds = new Set([
+    post.author_id,
+    ...affectedBookmarks.map(({ user_id }) => user_id),
+  ]);
+  for (const userId of affectedUserIds) {
+    io?.to(`user:${userId}`).emit("post_deleted", { postId });
+  }
 
   const [totalActivePosts, totalPostLikes] = await Promise.all([
     prisma.post.count({ where: { author_id: post.author_id, post_status: "ACTIVE" } }),
