@@ -5,5 +5,5 @@ export function isSupportedFile(buffer) {
     || ["GIF87a", "GIF89a"].includes(buffer.toString("ascii", 0, 6))
     || (buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP")
     || buffer.toString("ascii", 0, 5) === "%PDF-"
-    || (buffer.toString("ascii", 4, 8) === "ftyp" && ["isom", "iso2", "mp41", "mp42", "avc1", "M4V "].includes(buffer.toString("ascii", 8, 12)));
+    || (buffer.toString("ascii", 4, 8) === "ftyp" && ["isom", "iso2", "iso5", "iso6", "mp41", "mp42", "avc1", "M4V "].includes(buffer.toString("ascii", 8, 12)));
 }

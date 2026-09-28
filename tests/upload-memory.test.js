@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { once } from "node:events";
 import test from "node:test";
 import express from "express";
-import { postUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
+import { postUpload, profileMediaUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
 import { errorHandler } from "../utils/security.js";
 
 function png(size = 32) {
@@ -62,6 +62,21 @@ test("post upload rejects a forged MIME type", async () => {
     const result = await response.json();
     assert.equal(response.status, 400);
     assert.equal(result.code, "INVALID_REQUEST");
+  });
+});
+
+test("profile wallpaper accepts an MP4 with the iso5 file brand", async () => {
+  const header = Buffer.from("0000001c6674797069736f350000020069736f3569736f366d703431", "hex");
+  await withServer(app => {
+    app.put("/users/profile/with-media", profileMediaUpload.fields([{ name: "wallpaper", maxCount: 1 }]), (req, res) => {
+      res.json({ size: req.files.wallpaper[0].size });
+    });
+  }, async baseUrl => {
+    const body = new FormData();
+    body.append("wallpaper", new Blob([header], { type: "video/mp4" }), "wallpaper.mp4");
+    const response = await fetch(`${baseUrl}/users/profile/with-media`, { method: "PUT", body });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { size: header.length });
   });
 });
 
