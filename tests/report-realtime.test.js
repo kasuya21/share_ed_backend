@@ -10,6 +10,7 @@ const { reportPost } = await import("../controllers/report.controller.js");
 const { actionOnPost } = await import("../controllers/moderator.controller.js");
 const { deletePostPermanently } = await import("../utils/post-deletion.js");
 const { getBookmarks } = await import("../controllers/bookmark.controller.js");
+const { requirePublishedPost } = await import("../middlewares/post-access.middleware.js");
 
 function replace(t, object, key, value) {
   const original = object[key];
@@ -66,22 +67,22 @@ test("a new report broadcasts the complete updated post to reviewers", async (t)
   const reportedPost = {
     id: "post-1",
     title: "Reported post",
-    post_status: "ACTIVE",
+    post_status: "UNACTIVED",
     reports: [{ id: "report-1", reason: "สแปม" }],
     author: { username: "author", email: "author@example.com" },
-    _count: { reports: 10 },
+    _count: { reports: 5 },
   };
+  replace(t, prisma, "$transaction", async (callback) => callback(prisma));
+  replace(t, prisma, "$queryRaw", async () => [{ "?column?": 1 }]);
   let postLookup = 0;
-  replace(t, prisma.post, "findUnique", async () => {
-    postLookup += 1;
-    return postLookup === 1
-      ? { id: "post-1", title: "Reported post", author_id: "owner", post_status: "ACTIVE", _count: { reports: 9 } }
-      : reportedPost;
-  });
+  replace(t, prisma.post, "findUnique", async () => (++postLookup === 1)
+    ? { id: "post-1", title: "Reported post", author_id: "owner", post_status: "ACTIVE" }
+    : reportedPost);
   replace(t, prisma.report, "findUnique", async () => null);
   replace(t, prisma.report, "create", async () => ({ id: "report-1" }));
-  replace(t, prisma.post, "update", async () => ({ id: "post-1", post_status: "UNACTIVED" }));
-  replace(t, prisma.user, "findMany", async () => []);
+  replace(t, prisma.report, "count", async () => 5);
+  const update = replace(t, prisma.post, "update", async () => ({ id: "post-1", post_status: "UNACTIVED" }));
+  replace(t, prisma.user, "findMany", async () => [{ id: "admin-1" }]);
   replace(t, prisma.notification, "create", async ({ data }) => ({
     id: "notification-1",
     ...data,
@@ -99,6 +100,54 @@ test("a new report broadcasts the complete updated post to reviewers", async (t)
   assert.ok(reportEvent);
   assert.equal(reportEvent.room, "role:admin");
   assert.deepEqual(reportEvent.payload.post, reportedPost);
+  assert.equal(response.body.reportCount, 5);
+  assert.equal(response.body.postStatus, "UNACTIVED");
+  assert.deepEqual(update.mock.calls[0].arguments[0].data, { post_status: "UNACTIVED" });
+  const adminNotification = events.find((entry) => entry.event === "new_notification");
+  assert.equal(adminNotification?.room, "user:admin-1");
+  assert.equal(adminNotification.payload.type, "POST_REPORTED");
+});
+
+test("four unique reports keep the post active; a duplicate creates nothing", async (t) => {
+  const events = socketRecorder(t);
+  replace(t, prisma, "$transaction", async (callback) => callback(prisma));
+  replace(t, prisma, "$queryRaw", async () => [{ "?column?": 1 }]);
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-1", title: "Reported post", post_status: "ACTIVE"
+  }));
+  let duplicate = false;
+  replace(t, prisma.report, "findUnique", async () => duplicate ? { id: "old-report" } : null);
+  const create = replace(t, prisma.report, "create", async () => ({ id: "report-4" }));
+  replace(t, prisma.report, "count", async () => 4);
+  const update = replace(t, prisma.post, "update", async () => ({}));
+
+  const first = responseRecorder();
+  await reportPost({ user: { id: "reporter-4" }, body: { post_id: "post-1", reason: "สแปม" } }, first.res);
+  assert.equal(first.response.status, 201);
+  assert.equal(first.response.body.reportCount, 4);
+  assert.equal(first.response.body.postStatus, "ACTIVE");
+  assert.equal(update.mock.callCount(), 0);
+
+  duplicate = true;
+  const second = responseRecorder();
+  await reportPost({ user: { id: "reporter-4" }, body: { post_id: "post-1", reason: "สแปม" } }, second.res);
+  assert.equal(second.response.status, 400);
+  assert.equal(create.mock.callCount(), 1);
+  assert.equal(events.filter((event) => event.event === "report_created").length, 1);
+});
+
+test("a suspended post is rejected by public post access middleware", async (t) => {
+  const lookup = replace(t, prisma.post, "findFirst", async () => null);
+  const { response, res } = responseRecorder();
+  let allowed = false;
+  await requirePublishedPost((req) => req.params.id)(
+    { params: { id: "post-1" } }, res, () => { allowed = true; }
+  );
+  assert.equal(response.status, 404);
+  assert.equal(allowed, false);
+  assert.deepEqual(lookup.mock.calls[0].arguments[0].where, {
+    id: "post-1", post_status: "ACTIVE"
+  });
 });
 
 test("a moderation decision broadcasts an immediate badge update", async (t) => {

@@ -1,6 +1,9 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { getIO } from "../configs/socket.js";
+import { createNotification } from "../utils/notification.helper.js";
+
+const REPORT_SUSPEND_THRESHOLD = 5;
 
 export const reportPost = async (req, res) => {
   try {
@@ -16,26 +19,49 @@ export const reportPost = async (req, res) => {
       return res.status(400).json({ success: false, message: "เหตุผลการรายงานไม่ถูกต้อง" });
     }
 
-    const post = await prisma.post.findUnique({
-      where: { id: post_id },
-      include: { _count: { select: { reports: true } } }
+    const result = await prisma.$transaction(async (tx) => {
+      // Serialize reports for this post, including requests from different users.
+      await tx.$queryRaw`SELECT 1 FROM posts WHERE post_id = ${post_id} FOR UPDATE`;
+      const post = await tx.post.findUnique({ where: { id: post_id } });
+      if (!post || post.post_status !== "ACTIVE") return { kind: "missing" };
+
+      const existingReport = await tx.report.findUnique({
+        where: { user_id_post_id: { user_id, post_id } }
+      });
+      if (existingReport) return { kind: "duplicate" };
+
+      await tx.report.create({ data: { user_id, post_id, reason } });
+      // The database has @@unique([user_id, post_id]), so this is a unique-user count.
+      const reportCount = await tx.report.count({ where: { post_id } });
+      const suspended = reportCount >= REPORT_SUSPEND_THRESHOLD;
+      if (suspended) {
+        await tx.post.update({ where: { id: post_id }, data: { post_status: "UNACTIVED" } });
+      }
+      return { kind: "created", reportCount, suspended, title: post.title };
     });
 
-    if (!post || post.post_status !== "ACTIVE") {
-      return res.status(404).json({ message: "Post not found" });
-    }
-
-    const existingReport = await prisma.report.findUnique({
-      where: { user_id_post_id: { user_id, post_id } }
-    });
-
-    if (existingReport) {
+    if (result.kind === "missing") return res.status(404).json({ message: "Post not found" });
+    if (result.kind === "duplicate") {
       return res.status(400).json({ message: "You have already reported this post" });
     }
 
-    await prisma.report.create({ data: { user_id, post_id, reason } });
-
-    const reportCount = post._count.reports + 1;
+    const { reportCount, suspended } = result;
+    if (suspended) {
+      try {
+        const admins = await prisma.user.findMany({
+          where: { role: "ADMIN", status: "ACTIVE" },
+          select: { id: true }
+        });
+        await Promise.all(admins.map((admin) => createNotification(
+          admin.id,
+          "POST_REPORTED",
+          `โพสต์ “${result.title}” ได้รับรายงานจากผู้ใช้ไม่ซ้ำครบ ${REPORT_SUSPEND_THRESHOLD} คนและถูกระงับ รอตรวจสอบ`,
+          post_id
+        )));
+      } catch (notificationError) {
+        logError("controllers.reportPost.notifyAdmins", notificationError, req);
+      }
+    }
     const reportedPost = await prisma.post.findUnique({
       where: { id: post_id },
       include: {
@@ -55,8 +81,11 @@ export const reportPost = async (req, res) => {
       post: reportedPost,
     });
 
-    return res.status(201).json({ message: "Post reported successfully", reportCount });
+    return res.status(201).json({ message: "Post reported successfully", reportCount, postStatus: suspended ? "UNACTIVED" : "ACTIVE" });
   } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(400).json({ message: "You have already reported this post" });
+    }
     logError("controllers.reportPost", error, req);
     return res.status(500).json({ message: "Internal server error" });
   }
