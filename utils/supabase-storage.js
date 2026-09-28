@@ -79,7 +79,7 @@ export async function createSignedPdfUpload({
   };
 }
 
-export async function verifyUploadedPdf(asset, { userId, sessionId, bucket = getSupabasePdfBucket() }) {
+export async function verifyUploadedPdf(asset, { userId, sessionId, bucket = getSupabasePdfBucket(), onTiming }) {
   if (!asset || typeof asset !== "object" || Array.isArray(asset)) {
     throw new SupabasePdfError("INVALID_PDF", "ข้อมูลไฟล์ PDF ไม่ถูกต้อง", 400);
   }
@@ -108,12 +108,14 @@ export async function verifyUploadedPdf(asset, { userId, sessionId, bucket = get
   // จาก Storage และดาวน์โหลดเฉพาะ 5 ไบต์แรกสำหรับตรวจ magic bytes เท่านั้น
   const storage = supabaseAdmin.storage.from(bucket);
   let infoResult;
+  const startedInfo = performance.now();
   try {
     infoResult = await storage.info(assetPath);
   } catch (error) {
     logError("supabase_storage.verify_info_exception", error, undefined, { bucket, assetPath });
     throw new SupabasePdfError("PDF_STORAGE_ERROR", "เกิดข้อผิดพลาดในการตรวจสอบไฟล์ PDF", 500);
   }
+  onTiming?.("pdf_storage_info", performance.now() - startedInfo);
 
   const error = infoResult?.error;
   const data = infoResult?.data;
@@ -145,6 +147,7 @@ export async function verifyUploadedPdf(asset, { userId, sessionId, bucket = get
 
   // ตรวจสอบ Magic bytes (%PDF- => 0x25, 0x50, 0x44, 0x46, 0x2D)
   let headerResult;
+  const startedHeader = performance.now();
   try {
     headerResult = await storage.download(assetPath, {}, {
       headers: { Range: "bytes=0-4" },
@@ -161,6 +164,7 @@ export async function verifyUploadedPdf(asset, { userId, sessionId, bucket = get
   const headerBuffer = typeof headerData.arrayBuffer === "function"
     ? Buffer.from(await headerData.arrayBuffer()).subarray(0, 5)
     : Buffer.from(headerData).subarray(0, 5);
+  onTiming?.("pdf_header_read", performance.now() - startedHeader);
 
   if (headerBuffer.length < 5 || headerBuffer.toString("ascii") !== "%PDF-") {
     throw new SupabasePdfError("INVALID_PDF", "เนื้อหาไฟล์ไม่ใช่ PDF ที่ถูกต้อง (Magic bytes ไม่ถูกต้อง)", 400);

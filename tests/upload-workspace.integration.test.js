@@ -20,6 +20,7 @@ const { createPost } = await import("../controllers/post.controller.js");
 const { claimNextJob, enqueueJob, completeJob } = await import("../utils/job-queue.js");
 const cloudinary = (await import("../configs/cloudinary.config.js")).default;
 const { supabaseAdmin } = await import("../configs/supabase.config.js");
+const { verifyUploadedPdf } = await import("../utils/supabase-storage.js");
 
 function replace(t, object, key, implementation) {
   const original = object[key];
@@ -44,6 +45,24 @@ const COVER_CLIENT_ID = "77777777-7777-4777-8777-777777777777";
 const PDF_CLIENT_ID = "88888888-8888-4888-8888-888888888888";
 const COVER_ASSET_ID = "99999999-9999-4999-8999-999999999999";
 const PDF_ASSET_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+test("PDF verification reports storage metadata and header timings", async t => {
+  const path = `users/user-1/upload-sessions/${VALID_SESSION_ID}/${PDF_CLIENT_ID}.pdf`;
+  replace(t, supabaseAdmin.storage, "from", () => ({
+    info: async () => ({ data: { size: 1024, contentType: "application/pdf" }, error: null }),
+    download: async () => ({ data: Buffer.from("%PDF-"), error: null }),
+  }));
+  const timings = {};
+  const verified = await verifyUploadedPdf({
+    provider: "SUPABASE", bucket: "post-pdfs", path, upload_session_id: VALID_SESSION_ID,
+  }, {
+    userId: "user-1", sessionId: VALID_SESSION_ID,
+    onTiming: (name, duration) => { timings[name] = duration; },
+  });
+  assert.equal(verified.file_size, 1024);
+  assert.ok(timings.pdf_storage_info >= 0);
+  assert.ok(timings.pdf_header_read >= 0);
+});
 
 test("integration: end-to-end upload workspace flow (session -> sign -> complete -> verified -> create post)", async t => {
   // Mock DB stores

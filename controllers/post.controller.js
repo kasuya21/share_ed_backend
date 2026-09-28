@@ -1003,6 +1003,7 @@ export const createPost = async (req, res) => {
             const verified = await verifyUploadedPdf(asset, {
               userId: author_id,
               sessionId: uploadSessionId,
+              onTiming: (name, duration) => { createTimings[name] = duration; },
             });
             totalBytes += verified.file_size;
             sessionAssets.push({
@@ -1148,16 +1149,22 @@ export const createPost = async (req, res) => {
         create: mediaData
       }
     };
-    const createPostQuery = client => client.post.create({
-      data: {
-        ...createData,
-      },
-      include: POST_CREATE_INCLUDE,
-    });
+    const createPostQuery = async client => {
+      const startedInsert = performance.now();
+      const created = await client.post.create({
+        data: {
+          ...createData,
+        },
+        include: POST_CREATE_INCLUDE,
+      });
+      createTimings.db_post_insert = performance.now() - startedInsert;
+      return created;
+    };
     const startedDatabaseCreate = performance.now();
     const post = uploadSessionId
       ? await prisma.$transaction(async transaction => {
           const created = await createPostQuery(transaction);
+          const startedSessionCommit = performance.now();
           const committed = await transaction.uploadSession.updateMany({
             where: {
               id: uploadSessionId,
@@ -1171,6 +1178,7 @@ export const createPost = async (req, res) => {
               verified_assets: verifiedSessionAssets,
             },
           });
+          createTimings.db_session_update = performance.now() - startedSessionCommit;
           if (committed.count !== 1) {
             throw new DirectUploadValidationError("upload session ถูกใช้แล้วหรือหมดอายุ", "upload_session_id");
           }
@@ -1178,6 +1186,8 @@ export const createPost = async (req, res) => {
         })
       : await createPostQuery(prisma);
     createTimings.database_create = performance.now() - startedDatabaseCreate;
+    createTimings.db_transaction_overhead = Math.max(0, createTimings.database_create
+      - (createTimings.db_post_insert || 0) - (createTimings.db_session_update || 0));
 
     // 🔔 แจ้งเตือน Followers และคำนวณ Achievement แบบ Background (Non-blocking)
     if (post.post_status === "ACTIVE") {
