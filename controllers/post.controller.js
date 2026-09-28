@@ -551,6 +551,7 @@ export const getPostById = async (req, res) => {
 // ============================================================
 export const createPost = async (req, res) => {
   const startedCreatePost = performance.now();
+  const createTimings = {};
   let stage = "validate";
   const uploadedSupabasePaths = [];
   try {
@@ -972,6 +973,7 @@ export const createPost = async (req, res) => {
             isCover: false,
           })),
         ];
+        const startedCloudinaryVerify = performance.now();
         const verifiedCloudinaryAssets = await mapWithConcurrency(cloudinaryAssets, 4, async entry => {
           const verified = await verifyStoredDirectUpload(entry.asset, {
             ...verification,
@@ -980,6 +982,7 @@ export const createPost = async (req, res) => {
           }, lookup);
           return { ...entry, verified };
         });
+        createTimings.cloudinary_verify = performance.now() - startedCloudinaryVerify;
         for (const { asset, type, isCover, verified } of verifiedCloudinaryAssets) {
           totalBytes += verified.bytes;
           sessionAssets.push({ public_id: asset.public_id, type, bytes: verified.bytes });
@@ -995,6 +998,7 @@ export const createPost = async (req, res) => {
           }
         }
         if (supabasePdfs.length > 0) {
+          const startedPdfVerify = performance.now();
           const verifiedSupabase = await mapWithConcurrency(supabasePdfs, 3, async (asset) => {
             const verified = await verifyUploadedPdf(asset, {
               userId: author_id,
@@ -1020,6 +1024,7 @@ export const createPost = async (req, res) => {
               media_url: null,
             };
           });
+          createTimings.pdf_verify = performance.now() - startedPdfVerify;
           verifiedDirectMedia.push(...verifiedSupabase);
         }
         if (totalBytes > 50 * 1024 * 1024) throw new DirectUploadValidationError("ขนาดไฟล์รวมเกิน 50 MB");
@@ -1113,6 +1118,7 @@ export const createPost = async (req, res) => {
       });
     })();
 
+    const startedPrepare = performance.now();
     const tagsPromise = preparePostTags(parsedTags);
 
     const [cover_image, mediaData, postTagConnects] = await Promise.all([
@@ -1120,6 +1126,7 @@ export const createPost = async (req, res) => {
       mediaPromise,
       tagsPromise
     ]);
+    createTimings.prepare = performance.now() - startedPrepare;
 
     // 5. บันทึกโพสต์ แท็ก และไฟล์แนบในคำสั่งเดียว (Single atomic query)
     stage = "database_create";
@@ -1147,6 +1154,7 @@ export const createPost = async (req, res) => {
       },
       include: POST_CREATE_INCLUDE,
     });
+    const startedDatabaseCreate = performance.now();
     const post = uploadSessionId
       ? await prisma.$transaction(async transaction => {
           const created = await createPostQuery(transaction);
@@ -1169,6 +1177,7 @@ export const createPost = async (req, res) => {
           return created;
         })
       : await createPostQuery(prisma);
+    createTimings.database_create = performance.now() - startedDatabaseCreate;
 
     // 🔔 แจ้งเตือน Followers และคำนวณ Achievement แบบ Background (Non-blocking)
     if (post.post_status === "ACTIVE") {
@@ -1215,6 +1224,10 @@ export const createPost = async (req, res) => {
     }
 
     stage = "respond";
+    createTimings.total = performance.now() - startedCreatePost;
+    res.setHeader("Server-Timing", Object.entries(createTimings)
+      .map(([name, duration]) => `${name};dur=${duration.toFixed(1)}`)
+      .join(", "));
     res.status(201).json({
       success: true,
       message: "สร้างโพสต์สำเร็จ",
