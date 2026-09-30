@@ -1,5 +1,5 @@
 import express from "express";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middlewares/auth.middleware.js";
 import { postUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
 import { rateLimit } from "../utils/security.js";
 import {
@@ -31,7 +31,7 @@ import { uploadRateLimit } from "../utils/upload-rate-limiter.js";
 const router = express.Router();
 
 router.get("/stats", getPlatformStats);
-router.get("/", getAllPosts);
+router.get("/", optionalAuthMiddleware, getAllPosts);
 router.get("/trending", getTrendingPosts);
 router.get("/most-liked", getMostLikedPosts);
 router.get("/user/my-posts", authMiddleware, getUserPosts);

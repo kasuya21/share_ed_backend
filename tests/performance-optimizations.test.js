@@ -7,10 +7,14 @@ process.env.SUPABASE_ANON_KEY = "test-key";
 const { prisma } = await import("../configs/prisma.js");
 const {
   getAllPosts,
+  getUserPosts,
   getPlatformStats,
   getTrendingPosts,
   recordPostView,
   trendingPostsCache,
+  mostLikedPostsCache,
+  platformStatsCache,
+  invalidatePostDiscoveryCaches,
 } = await import("../controllers/post.controller.js");
 const { verifyAccessToken } = await import("../utils/auth-token.js");
 const { equipItem } = await import("../controllers/user.controller.js");
@@ -25,10 +29,11 @@ function replace(t, object, key, implementation) {
 }
 
 function response() {
-  const result = {};
+  const result = { headers: {} };
   result.res = {
     status(code) { result.status = code; return this; },
     json(body) { result.body = body; return this; },
+    setHeader(name, value) { result.headers[name] = value; return this; },
   };
   return result;
 }
@@ -46,10 +51,34 @@ test("post listing is paginated and omits detail-only content and media", async 
   assert.equal(query.select.content, undefined);
   assert.equal(query.select.media, undefined);
   assert.equal(query.select.author.select.current_frame.select.image_url, true);
+  assert.equal(result.headers["Cache-Control"], "no-store");
   assert.deepEqual(result.body.pagination, {
     page: 2, limit: 10, total: 27, totalPages: 3,
     hasNextPage: true, hasPreviousPage: true,
   });
+});
+
+test("user post listing disables browser and proxy caching", async t => {
+  replace(t, prisma.post, "findMany", async () => []);
+  const result = response();
+
+  await getUserPosts({ user: { id: "user-1" } }, result.res);
+
+  assert.equal(result.status, 200);
+  assert.equal(result.headers["Cache-Control"], "no-store");
+});
+
+test("post discovery cache invalidation clears every derived post cache", () => {
+  const cached = { data: { id: "post-1" }, timestamp: Date.now(), ttlMs: 60_000 };
+  trendingPostsCache.cache.set("trending", cached);
+  mostLikedPostsCache.cache.set("most_liked", cached);
+  platformStatsCache.cache.set("stats", cached);
+
+  invalidatePostDiscoveryCaches();
+
+  assert.equal(trendingPostsCache.cache.size, 0);
+  assert.equal(mostLikedPostsCache.cache.size, 0);
+  assert.equal(platformStatsCache.cache.size, 0);
 });
 
 test("post listing caps page size at 50", async t => {
@@ -57,6 +86,22 @@ test("post listing caps page size at 50", async t => {
   replace(t, prisma.post, "count", async () => 0);
   await getAllPosts({ query: { limit: "999999" } }, response().res);
   assert.equal(findMany.mock.calls[0].arguments[0].take, 50);
+});
+
+test("authenticated post listing includes only the current user's like", async t => {
+  const findMany = replace(t, prisma.post, "findMany", async () => []);
+  replace(t, prisma.post, "count", async () => 0);
+
+  await getAllPosts(
+    { query: {}, user: { id: "user-1" } },
+    response().res,
+  );
+
+  assert.deepEqual(findMany.mock.calls[0].arguments[0].select.likes, {
+    where: { user_id: "user-1" },
+    select: { user_id: true },
+    take: 1,
+  });
 });
 
 test("platform stat counts start concurrently", async t => {
