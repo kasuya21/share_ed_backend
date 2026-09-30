@@ -14,7 +14,13 @@
     "seed": "node prisma/seed.js",
     "load:upload-signatures": "node load-tests/upload-signatures.js",
     "worker": "node workers/index.js",
-    "load:workspace": "k6 run load-tests/upload-workspace.k6.js"
+    "load:workspace": "k6 run load-tests/upload-workspace.k6.js",
+    "k6:feed": "k6 run k6/scenarios/feed.js",
+    "k6:likes": "k6 run k6/scenarios/likes.js",
+    "k6:rewards": "k6 run k6/scenarios/rewards.js",
+    "k6:notifications": "k6 run k6/scenarios/notifications.js",
+    "k6:posts": "k6 run k6/scenarios/posts-upload.js",
+    "k6:mixed": "k6 run k6/scenarios/mixed.js"
   },
   "keywords": [
     "this",
