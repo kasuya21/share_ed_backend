@@ -74,6 +74,11 @@ export const getBookmarks = async (req, res) => {
               }
             },
             category: true,
+            likes: {
+              where: { user_id: userId },
+              select: { user_id: true },
+              take: 1,
+            },
             _count: { select: { comments: true, likes: true } }
           }
         }

@@ -1896,6 +1896,11 @@ export const getUserPosts = async (req, res) => {
         tags: {
           include: { tag: true }
         },
+        likes: {
+          where: { user_id },
+          select: { user_id: true },
+          take: 1,
+        },
         _count: {
           select: {
             comments: true,
