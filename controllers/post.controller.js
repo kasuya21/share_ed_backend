@@ -42,6 +42,12 @@ export const trendingPostsCache = new MemoryCache(2 * 60 * 1000);
 export const mostLikedPostsCache = new MemoryCache(60 * 1000);
 export const platformStatsCache = new MemoryCache(5 * 60 * 1000);
 
+export function invalidatePostDiscoveryCaches() {
+  platformStatsCache.clear();
+  trendingPostsCache.clear();
+  mostLikedPostsCache.clear();
+}
+
 const AUTHOR_FRAME_SELECT = {
   id: true,
   username: true,
@@ -284,6 +290,17 @@ export const POST_CARD_SELECT = {
   }
 };
 
+export const postCardSelectForUser = (userId) => ({
+  ...POST_CARD_SELECT,
+  ...(userId ? {
+    likes: {
+      where: { user_id: userId },
+      select: { user_id: true },
+      take: 1,
+    },
+  } : {}),
+});
+
 // ─── Helper: Upload a single buffer to Cloudinary ───
 async function uploadToCloudinary(fileBuffer, options = {}) {
   return new Promise((resolve, reject) => {
@@ -404,7 +421,7 @@ export const getAllPosts = async (req, res) => {
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
         where,
-        select: POST_CARD_SELECT,
+        select: postCardSelectForUser(req.user?.id),
         orderBy,
         skip,
         take: limit,
@@ -412,7 +429,9 @@ export const getAllPosts = async (req, res) => {
       prisma.post.count({ where }),
     ]);
 
-    res.setHeader?.("Cache-Control", "public, max-age=15, stale-while-revalidate=45");
+    // Post mutations must be visible immediately on Explore/Home. Browser or
+    // proxy caching here can otherwise serve a deleted post for up to 60s.
+    res.setHeader?.("Cache-Control", "no-store");
     res.status(200).json({
       success: true,
       data: posts,
@@ -1851,9 +1870,7 @@ export const deletePost = async (req, res) => {
     await deletePostPermanently(id);
     getIO()?.to("role:admin").emit("report_reviewed", { postId: id, action: "DELETE" });
 
-    platformStatsCache.clear();
-    trendingPostsCache.clear();
-    mostLikedPostsCache.clear();
+    invalidatePostDiscoveryCaches();
 
     res.status(200).json({ success: true, message: "ลบโพสต์สำเร็จ" });
   } catch (error) {
@@ -1869,6 +1886,7 @@ export const deletePost = async (req, res) => {
 export const getUserPosts = async (req, res) => {
   try {
     const user_id = req.user.id;
+    res.setHeader?.("Cache-Control", "no-store");
 
     const posts = await prisma.post.findMany({
       where: { author_id: user_id },

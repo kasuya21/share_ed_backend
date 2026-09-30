@@ -69,3 +69,19 @@ export const createAuthMiddleware = ({ allowProvisioning = false } = {}) => asyn
 
 export const authMiddleware = createAuthMiddleware();
 export const provisioningAuthMiddleware = createAuthMiddleware({ allowProvisioning: true });
+
+// Public endpoints can use the caller identity when a valid session is
+// available without requiring visitors to sign in.
+export const optionalAuthMiddleware = async (req, _res, next) => {
+  try {
+    const token = bearerToken(req.headers.authorization);
+    if (!token) return next();
+
+    const { user, error } = await verifyAccessToken(supabase, token);
+    if (!error && user) req.user = user;
+  } catch (error) {
+    logWarn("auth.optional_token_ignored", error, req);
+  }
+
+  return next();
+};
