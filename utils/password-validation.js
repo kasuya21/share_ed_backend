@@ -7,9 +7,9 @@ export function validatePassword(password) {
     errors.push({ code: "LENGTH", message: "รหัสผ่านต้องมีความยาว 8–128 ตัวอักษร" });
   }
   for (const [pattern, code, message] of [
-    [/[A-Z]/, "UPPERCASE", "ต้องมีตัวอักษรพิมพ์ใหญ่ A–Z อย่างน้อย 1 ตัว"],
-    [/[a-z]/, "LOWERCASE", "ต้องมีตัวอักษรพิมพ์เล็ก a–z อย่างน้อย 1 ตัว"],
+    [/[A-Za-z]/, "LETTER", "ต้องมีตัวอักษรภาษาอังกฤษอย่างน้อย 1 ตัว"],
     [/[0-9]/, "NUMBER", "ต้องมีตัวเลข 0–9 อย่างน้อย 1 ตัว"],
+    [/^[A-Za-z0-9]+$/, "CHARACTERS", "ใช้ได้เฉพาะ A-Z, a-z และ 0-9"],
   ]) {
     if (!pattern.test(password)) errors.push({ code, message });
   }
