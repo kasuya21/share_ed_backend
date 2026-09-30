@@ -59,13 +59,18 @@ test("post listing is paginated and omits detail-only content and media", async 
 });
 
 test("user post listing disables browser and proxy caching", async t => {
-  replace(t, prisma.post, "findMany", async () => []);
+  const findMany = replace(t, prisma.post, "findMany", async () => []);
   const result = response();
 
   await getUserPosts({ user: { id: "user-1" } }, result.res);
 
   assert.equal(result.status, 200);
   assert.equal(result.headers["Cache-Control"], "no-store");
+  assert.deepEqual(findMany.mock.calls[0].arguments[0].include.likes, {
+    where: { user_id: "user-1" },
+    select: { user_id: true },
+    take: 1,
+  });
 });
 
 test("post discovery cache invalidation clears every derived post cache", () => {
