@@ -110,7 +110,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ message: "Comment not found" });
     }
 
-    if (comment.user_id !== user_id) {
+    if (comment.user_id !== user_id && req.userRole !== "ADMIN") {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -118,8 +118,9 @@ export const deleteComment = async (req, res) => {
       where: { id },
     });
 
-    const totalComments = await prisma.comment.count({ where: { user_id } });
-    await updateAchievementProgress(user_id, "COMMENTS_CREATED", totalComments);
+    const commentOwnerId = comment.user_id;
+    const totalComments = await prisma.comment.count({ where: { user_id: commentOwnerId } });
+    await updateAchievementProgress(commentOwnerId, "COMMENTS_CREATED", totalComments);
 
     res.json({ message: "Comment deleted" });
   } catch (err) {
