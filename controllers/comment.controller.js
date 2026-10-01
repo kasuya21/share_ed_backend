@@ -2,6 +2,7 @@ import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { updateAchievementProgress } from "../utils/achievement.helper.js";
+import { PUBLIC_POST_WHERE } from "../utils/post-visibility.js";
 
 export const createComment = async (req, res) => {
   try {
@@ -74,7 +75,7 @@ export const getCommentsByPost = async (req, res) => {
     const comments = await prisma.comment.findMany({
       where: {
         post_id: postId,
-        post: { post_status: "ACTIVE" },
+        post: PUBLIC_POST_WHERE,
       },
       include: {
         user: {
@@ -153,7 +154,7 @@ export const updateComment = async (req, res) => {
     }
 
     const publishedPost = await prisma.post.findFirst({
-      where: { id: comment.post_id, post_status: "ACTIVE" }, select: { id: true }
+      where: { id: comment.post_id, ...PUBLIC_POST_WHERE }, select: { id: true }
     });
     if (!publishedPost) return res.status(404).json({ message: "Post not found" });
 

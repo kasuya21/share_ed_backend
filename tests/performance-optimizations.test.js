@@ -7,6 +7,7 @@ process.env.SUPABASE_ANON_KEY = "test-key";
 const { prisma } = await import("../configs/prisma.js");
 const {
   getAllPosts,
+  getPostById,
   getUserPosts,
   getPlatformStats,
   getTrendingPosts,
@@ -19,6 +20,7 @@ const {
 const { verifyAccessToken } = await import("../utils/auth-token.js");
 const { equipItem } = await import("../controllers/user.controller.js");
 const { verifyUser } = await import("../controllers/auth.controller.js");
+const { suspendUser } = await import("../controllers/admin.controller.js");
 const { isAnimatedPng, rewardUploadOptions } = await import("../controllers/admin.reward.controller.js");
 
 function replace(t, object, key, implementation) {
@@ -40,7 +42,7 @@ function response() {
 
 test("post listing is paginated and omits detail-only content and media", async t => {
   const findMany = replace(t, prisma.post, "findMany", async () => [{ id: "post" }]);
-  replace(t, prisma.post, "count", async () => 27);
+  const count = replace(t, prisma.post, "count", async () => 27);
   const result = response();
 
   await getAllPosts({ query: { page: "2", limit: "10" } }, result.res);
@@ -48,6 +50,8 @@ test("post listing is paginated and omits detail-only content and media", async 
   const query = findMany.mock.calls[0].arguments[0];
   assert.equal(query.skip, 10);
   assert.equal(query.take, 10);
+  assert.deepEqual(query.where, { post_status: "ACTIVE", author: { status: "ACTIVE" } });
+  assert.deepEqual(count.mock.calls[0].arguments[0].where, query.where);
   assert.equal(query.select.content, undefined);
   assert.equal(query.select.media, undefined);
   assert.equal(query.select.author.select.current_frame.select.image_url, true);
@@ -56,6 +60,31 @@ test("post listing is paginated and omits detail-only content and media", async 
     page: 2, limit: 10, total: 27, totalPages: 3,
     hasNextPage: true, hasPreviousPage: true,
   });
+});
+
+test("post detail is hidden when its author is suspended", async t => {
+  replace(t, prisma.post, "findUnique", async () => ({
+    id: "post-1", author_id: "owner-1", post_status: "ACTIVE",
+    author: { id: "owner-1", status: "SUSPENDED" },
+  }));
+  const result = response();
+  await getPostById({ params: { id: "post-1" }, user: { id: "reader-1" }, userRole: "USER" }, result.res);
+  assert.equal(result.status, 404);
+});
+
+test("suspending an account clears cached discovery results", async t => {
+  replace(t, prisma.user, "findUnique", async () => ({ id: "owner-1", role: "USER", status: "ACTIVE" }));
+  replace(t, prisma, "$transaction", async callback => callback({
+    user: { update: async () => ({}) },
+    adminSecurityAudit: { create: async () => ({}) },
+  }));
+  trendingPostsCache.cache.set("trending", { data: [], timestamp: Date.now(), ttlMs: 60_000 });
+  mostLikedPostsCache.cache.set("most_liked", { data: [], timestamp: Date.now(), ttlMs: 60_000 });
+  const result = response();
+  await suspendUser({ params: { id: "owner-1" }, body: {}, user: { id: "admin-1" } }, result.res);
+  assert.equal(result.status, 200);
+  assert.equal(trendingPostsCache.cache.size, 0);
+  assert.equal(mostLikedPostsCache.cache.size, 0);
 });
 
 test("user post listing disables browser and proxy caching", async t => {
