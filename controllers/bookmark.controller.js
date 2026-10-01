@@ -1,13 +1,14 @@
 import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
+import { PUBLIC_POST_WHERE } from "../utils/post-visibility.js";
 
 export const toggleBookmark = async (req, res) => {
   try {
     const { postId } = req.params;
     const userId = req.user.id;
 
-    const post = await prisma.post.findUnique({ where: { id: postId } });
-    if (!post || post.post_status !== "ACTIVE") {
+    const post = await prisma.post.findFirst({ where: { id: postId, ...PUBLIC_POST_WHERE } });
+    if (!post) {
       return res.status(404).json({ success: false, message: "Post not found" });
     }
     //เช็คว่าเคยกดbookmarkไว้รึยัง
@@ -48,7 +49,7 @@ export const getBookmarks = async (req, res) => {
 
     if (idsOnly) {
       const bookmarks = await prisma.bookmark.findMany({
-        where: { user_id: userId, post: { post_status: "ACTIVE" } },
+        where: { user_id: userId, post: PUBLIC_POST_WHERE },
         select: { post_id: true },
         orderBy: { created_at: "desc" }
       });
@@ -58,7 +59,7 @@ export const getBookmarks = async (req, res) => {
 
     // get all bookmark by user id
     const bookmarks = await prisma.bookmark.findMany({
-      where: { user_id: userId, post: { post_status: "ACTIVE" } },
+      where: { user_id: userId, post: PUBLIC_POST_WHERE },
       include: {
         post: {
           include: {

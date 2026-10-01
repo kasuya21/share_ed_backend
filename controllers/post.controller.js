@@ -10,6 +10,7 @@ import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
 import { supabase } from "../configs/supabase.config.js";
 import { MemoryCache } from "../utils/cache.helper.js";
 import { deletePostPermanently } from "../utils/post-deletion.js";
+import { PUBLIC_POST_WHERE } from "../utils/post-visibility.js";
 import {
   createSignedPdfUpload,
   verifyUploadedPdf,
@@ -363,7 +364,7 @@ export const getAllPosts = async (req, res) => {
     const limit = positiveInteger(req.query.limit, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
     const skip = (page - 1) * limit;
 
-    const where = { post_status: "ACTIVE" };
+    const where = { ...PUBLIC_POST_WHERE };
 
     // 4.1.4.1 ค้นหาคำสำคัญจาก Title, Content, Author name และ Hashtag
     if (search) {
@@ -471,7 +472,8 @@ export const getPostById = async (req, res) => {
         author: {
           select: {
             ...AUTHOR_FRAME_SELECT,
-            bio: true
+            bio: true,
+            status: true,
           }
         },
         category: true,
@@ -515,6 +517,11 @@ export const getPostById = async (req, res) => {
         message: "ไม่พบโพสต์"
       });
     }
+
+    if (post.author?.status !== "ACTIVE" && userRole !== "ADMIN") {
+      return res.status(404).json({ success: false, message: "ไม่พบโพสต์" });
+    }
+    if (post.author) delete post.author.status;
 
     // 4.1.2.2 & 4.1.9.1 ควบคุมสิทธิ์การเข้าถึงข้อมูลสถานะต่างๆ
     if (post.post_status === "DRAFT" && post.author_id !== userId) {
@@ -1985,7 +1992,7 @@ export const getTrendingPosts = async (req, res) => {
       where: {
         viewed_at: { gte: windowStartedAt },
         post: {
-          post_status: "ACTIVE",
+          ...PUBLIC_POST_WHERE,
           ...(level && { education_level: level })
         }
       },
@@ -2004,7 +2011,7 @@ export const getTrendingPosts = async (req, res) => {
       // than allowing old lifetime totals to dominate the trending section.
       const fallbackPosts = await prisma.post.findMany({
         where: {
-          post_status: "ACTIVE",
+          ...PUBLIC_POST_WHERE,
           ...(level && { education_level: level })
         },
         select: POST_CARD_SELECT,
@@ -2035,7 +2042,7 @@ export const getTrendingPosts = async (req, res) => {
     const posts = await prisma.post.findMany({
       where: {
         id: { in: postIds },
-        post_status: "ACTIVE"
+        ...PUBLIC_POST_WHERE,
       },
       select: POST_CARD_SELECT,
     });
@@ -2080,7 +2087,7 @@ export const getTrendingPosts = async (req, res) => {
 // ============================================================
 export const getMostLikedPosts = async (req, res) => {
   try {
-    res.setHeader?.("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+    res.setHeader?.("Cache-Control", "no-store");
     const cached = mostLikedPostsCache.get("most_liked");
     if (cached) {
       return res.status(200).json({ success: true, data: cached });
@@ -2088,7 +2095,7 @@ export const getMostLikedPosts = async (req, res) => {
 
     const posts = await prisma.post.findMany({
       where: {
-        post_status: "ACTIVE"
+        ...PUBLIC_POST_WHERE,
       },
       select: POST_CARD_SELECT,
       orderBy: {
@@ -2120,14 +2127,14 @@ export const getMostLikedPosts = async (req, res) => {
 // ============================================================
 export const getPlatformStats = async (req, res) => {
   try {
-    res.setHeader?.("Cache-Control", "public, max-age=60, stale-while-revalidate=120");
+    res.setHeader?.("Cache-Control", "no-store");
     const cached = platformStatsCache.get("stats");
     if (cached) {
       return res.status(200).json({ success: true, data: cached });
     }
 
     const [totalPosts, totalSharers] = await Promise.all([
-      prisma.post.count({ where: { post_status: 'ACTIVE' } }),
+      prisma.post.count({ where: PUBLIC_POST_WHERE }),
       prisma.user.count(),
     ]);
 
@@ -2376,10 +2383,19 @@ export const downloadPostMedia = async (req, res) => {
         id: true,
         author_id: true,
         post_status: true,
+        author: { select: { status: true } },
       },
     });
 
     if (!post) {
+      return res.status(404).json({
+        success: false,
+        code: "POST_NOT_FOUND",
+        message: "ไม่พบโพสต์",
+      });
+    }
+
+    if (post.author?.status !== "ACTIVE" && userRole !== "ADMIN") {
       return res.status(404).json({
         success: false,
         code: "POST_NOT_FOUND",

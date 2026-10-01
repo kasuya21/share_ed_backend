@@ -146,7 +146,7 @@ test("a suspended post is rejected by public post access middleware", async (t) 
   assert.equal(response.status, 404);
   assert.equal(allowed, false);
   assert.deepEqual(lookup.mock.calls[0].arguments[0].where, {
-    id: "post-1", post_status: "ACTIVE"
+    id: "post-1", post_status: "ACTIVE", author: { status: "ACTIVE" }
   });
 });
 
@@ -262,7 +262,7 @@ test("bookmark lists never return deleted or inactive posts", async (t) => {
   for (const call of findMany.mock.calls) {
     assert.deepEqual(call.arguments[0].where, {
       user_id: "bookmark-user-1",
-      post: { post_status: "ACTIVE" },
+      post: { post_status: "ACTIVE", author: { status: "ACTIVE" } },
     });
   }
 });

@@ -2,6 +2,7 @@ import { logError } from "../utils/logger.js";
 import { prisma } from "../configs/prisma.js";
 import { createNotification } from "../utils/notification.helper.js";
 import { userStatusCache } from "../middlewares/auth.middleware.js";
+import { invalidatePostDiscoveryCaches } from "./post.controller.js";
 
 const auditContext = (req, targetUserId, action, oldValue, newValue) => ({
   actor_id: req.user.id,
@@ -166,6 +167,7 @@ export const banUser = async (req, res) => {
     });
 
     userStatusCache.delete(id);
+    invalidatePostDiscoveryCaches();
 
     await createNotification(
       id,
@@ -203,6 +205,7 @@ export const unbanUser = async (req, res) => {
     });
 
     userStatusCache.delete(id);
+    invalidatePostDiscoveryCaches();
 
     await createNotification(
       id,
@@ -245,6 +248,7 @@ export const suspendUser = async (req, res) => {
     });
 
     userStatusCache.delete(id);
+    invalidatePostDiscoveryCaches();
 
     res.status(200).json({ success: true, message: "User suspended successfully" });
   } catch (error) {
@@ -276,6 +280,7 @@ export const activateUser = async (req, res) => {
     });
 
     userStatusCache.delete(id);
+    invalidatePostDiscoveryCaches();
 
     res.status(200).json({ success: true, message: "User activated successfully" });
   } catch (error) {
