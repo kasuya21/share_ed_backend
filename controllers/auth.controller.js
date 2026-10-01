@@ -3,6 +3,7 @@ import { validatePassword } from "../utils/password-validation.js";
 import { bearerToken } from "../utils/security.js";
 import { supabase } from "../configs/supabase.config.js";
 import { prisma } from "../configs/prisma.js";
+import { DEFAULT_AVATAR_URL } from "../utils/avatar.js";
 
 const EMAIL_VERIFICATION_MESSAGE = "หากอีเมลนี้รอการยืนยัน ระบบจะส่งรหัสยืนยันให้คุณ";
 
@@ -80,6 +81,7 @@ export const registerUser = async (req, res) => {
         data: {
           username: normalizedUsername,
           education_level,
+          avatar_url: DEFAULT_AVATAR_URL,
         },
         emailRedirectTo: verificationRedirectUrl(),
       }
@@ -101,6 +103,7 @@ export const registerUser = async (req, res) => {
         id: authUser.id,
         email: normalizedEmail,
         username: normalizedUsername,
+        profile_image: DEFAULT_AVATAR_URL,
         education_level,
         role: "MEMBER",
         status: "ACTIVE"
@@ -237,6 +240,7 @@ export const loginUser = async (req, res) => {
           id: authUser.id,
           email: authUser.email,
           username: authUser.email.split("@")[0],
+          profile_image: authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture || DEFAULT_AVATAR_URL,
           role: "MEMBER",
           status: "ACTIVE"
         },
@@ -265,7 +269,7 @@ export const loginUser = async (req, res) => {
       success: true,
       message: "ยินดีต้อนรับเข้าสู่ระบบ",
       session: data.session,
-      user: dbUser
+      user: { ...dbUser, profile_image: dbUser.profile_image || DEFAULT_AVATAR_URL }
     });
 
   } catch (error) {
@@ -337,7 +341,7 @@ export const verifyUser = async (req, res) => {
             id: authUser.id,
             email: authUser.email,
             username: username,
-            profile_image: avatarUrl,
+            profile_image: avatarUrl || DEFAULT_AVATAR_URL,
             role: "MEMBER",
             status: "ACTIVE"
           },
@@ -357,7 +361,7 @@ export const verifyUser = async (req, res) => {
       let needsUpdate = false;
       const updateData = {};
 
-      if (!dbUser.profile_image && avatarUrl) {
+      if ((!dbUser.profile_image || dbUser.profile_image === DEFAULT_AVATAR_URL) && avatarUrl) {
         updateData.profile_image = avatarUrl;
         needsUpdate = true;
       }
@@ -388,7 +392,8 @@ export const verifyUser = async (req, res) => {
 
     res.json({
       ...dbUser,
-      avatar_url: dbUser.profile_image,
+      profile_image: dbUser.profile_image || DEFAULT_AVATAR_URL,
+      avatar_url: dbUser.profile_image || DEFAULT_AVATAR_URL,
       user_metadata: {
         banner_url: dbUser.profile_banner,
         wallpaper_url: dbUser.wallpaper,

@@ -3,6 +3,7 @@ import { prisma } from "../configs/prisma.js";
 import { supabase } from "../configs/supabase.config.js";
 import { uploadToCloudinary } from "../middlewares/upload.middleware.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.helper.js";
+import { DEFAULT_AVATAR_URL, isDefaultAvatar } from "../utils/avatar.js";
 
 // Social Links URL structure and protocol validation
 const validateSocialLinks = (links) => {
@@ -103,7 +104,9 @@ export const updateProfile = async (req, res) => {
       if (!user) return res.status(404).json({ message: "User not found" });
       // อัปโหลดรูปโปรไฟล์
       if (req.files.profile_image && req.files.profile_image.length > 0) {
-        if (user.profile_image) await deleteFromCloudinary(user.profile_image);
+        if (user.profile_image && !isDefaultAvatar(user.profile_image)) {
+          await deleteFromCloudinary(user.profile_image);
+        }
         const result = await uploadToCloudinary(
           req.files.profile_image[0].buffer,
           "share-ed/profiles",
@@ -157,7 +160,7 @@ export const updateProfile = async (req, res) => {
     res.status(200).json({ 
       success: true, 
       message: "อัปเดตโปรไฟล์สำเร็จ", 
-      data: updatedUser 
+      data: { ...updatedUser, profile_image: updatedUser.profile_image || DEFAULT_AVATAR_URL }
     });
 
   } catch (error) {
@@ -303,6 +306,7 @@ export const getPublicProfile = async (req, res) => {
       success: true, 
       data: {
         ...user,
+        profile_image: user.profile_image || DEFAULT_AVATAR_URL,
         totalLikes,
         isSelf,
         isFollowing
@@ -373,7 +377,7 @@ export const updateProfileWithMedia = async (req, res) => {
         return res.status(404).json({ success: false, message: "User not found" });
       }
       if (req.files.avatar && req.files.avatar[0]) {
-        if (user.profile_image) await deleteFromCloudinary(user.profile_image);
+        if (user.profile_image && !isDefaultAvatar(user.profile_image)) await deleteFromCloudinary(user.profile_image);
         const result = await uploadToCloudinary(req.files.avatar[0].buffer, "share-ed/avatars");
         updateData.profile_image = result.secure_url;
       }
@@ -417,7 +421,8 @@ export const updateProfileWithMedia = async (req, res) => {
       message: "Profile updated successfully",
       data: {
         ...updatedUser,
-        avatar_url: updatedUser.profile_image,
+        profile_image: updatedUser.profile_image || DEFAULT_AVATAR_URL,
+        avatar_url: updatedUser.profile_image || DEFAULT_AVATAR_URL,
         user_metadata: {
           banner_url: updatedUser.profile_banner,
           wallpaper_url: updatedUser.wallpaper,
@@ -463,7 +468,8 @@ export const getUserById = async (req, res) => {
       success: true,
       data: {
         ...user,
-        avatar_url: user.profile_image,
+        profile_image: user.profile_image || DEFAULT_AVATAR_URL,
+        avatar_url: user.profile_image || DEFAULT_AVATAR_URL,
         user_metadata: {
           banner_url: user.profile_banner,
           wallpaper_url: user.wallpaper,
