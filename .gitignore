@@ -20,10 +20,3 @@ tests/*
 !tests/upload-workspace.unit.test.js
 !tests/upload-workspace.integration.test.js
 scripts
-
-# k6 test results and sensitive fixture files
-k6/results/*.json
-k6/results/*.csv
-k6/results/*.html
-k6/fixtures/*tokens*.json
-k6/fixtures/*.local.json
