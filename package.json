@@ -10,6 +10,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "dev": "node --watch index.js",
     "build": "prisma generate",
+    "docs:generate": "node scripts/generate-api-docs.mjs",
     "postinstall": "prisma generate",
     "seed": "node prisma/seed.js",
     "worker": "node workers/index.js"

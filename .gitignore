@@ -20,3 +20,6 @@ tests/*
 !tests/upload-workspace.unit.test.js
 !tests/upload-workspace.integration.test.js
 scripts
+!scripts/
+scripts/*
+!scripts/generate-api-docs.mjs

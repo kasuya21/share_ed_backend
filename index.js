@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import compression from "compression";
+import swaggerUi from "swagger-ui-express";
 import "dotenv/config";
 import { initCronJobs } from "./utils/cron.js";
 import { initIO } from "./configs/socket.js";
@@ -30,11 +31,23 @@ import { prisma } from "./configs/prisma.js";
 import { socketAuth, joinOwnRoom } from "./middlewares/socket.middleware.js";
 import { securityHeaders, rateLimit, errorHandler } from "./utils/security.js";
 import { requestLogging, logError } from "./utils/logger.js";
+import { swaggerDocument } from "./configs/swagger.js";
 
 const app = express();
 app.disable("x-powered-by");
 app.use(requestLogging);
 app.use(securityHeaders);
+app.get("/api-docs.json", (req, res) => {
+  res.setHeader("Cache-Control", "public, max-age=300");
+  res.json(swaggerDocument);
+});
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customSiteTitle: "Share-Ed API Documentation",
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+  },
+}));
 app.use((req, res, next) => {
   res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
   res.setHeader("X-Robots-Tag", "noindex, nofollow, nosnippet");
