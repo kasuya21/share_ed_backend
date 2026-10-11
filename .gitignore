@@ -19,6 +19,7 @@ tests/*
 !tests/unverified-user-cleanup.test.js
 !tests/upload-workspace.unit.test.js
 !tests/upload-workspace.integration.test.js
+!tests/widget.controller.test.js
 scripts
 !scripts/
 scripts/*

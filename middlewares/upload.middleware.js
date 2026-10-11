@@ -168,13 +168,21 @@ export function uploadConcurrencyGuard(req, res, next) {
   next();
 }
 
-export const uploadToCloudinary = (fileBuffer, folder = "share-ed", transformation = []) => {
+export const uploadToCloudinary = (
+  fileBuffer,
+  folder = "share-ed",
+  transformation = [],
+  resourceType = "auto",
+) => {
   if (!isSupportedFile(fileBuffer)) {
     return Promise.reject(uploadError("INVALID_UPLOAD", "Unsupported file content"));
   }
+  const uploadOptions = resourceType === "video"
+    ? { folder, resource_type: "video" }
+    : { folder, resource_type: resourceType, transformation, quality: "auto", fetch_format: "auto" };
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: "auto", transformation, quality: "auto", fetch_format: "auto" },
+      uploadOptions,
       (error, result) => {
         if (error) {
           logError("middlewares.uploadToCloudinary", error);

@@ -152,6 +152,7 @@ export const updateProfile = async (req, res) => {
         education_level: true,
         role: true,
         social_links: true,
+        widgets: true,
         current_frame_id: true,
         current_frame: true
       }
@@ -245,6 +246,7 @@ export const getPublicProfile = async (req, res) => {
         role: true,
         nickname: true,
         social_links: true,
+        widgets: true,
         created_at: true,
         current_frame_id: true,
         current_frame: true,
@@ -320,6 +322,8 @@ export const getPublicProfile = async (req, res) => {
 };
 
 export const updateProfileWithMedia = async (req, res) => {
+  let stage = "validate_profile";
+  let activeFile = null;
   try {
     const userId = req.user.id;
     const {
@@ -370,6 +374,7 @@ export const updateProfileWithMedia = async (req, res) => {
     if (education_level !== undefined) updateData.education_level = education_level;
 
     // Handle file uploads
+    const staleMedia = [];
     if (req.files) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       
@@ -377,22 +382,36 @@ export const updateProfileWithMedia = async (req, res) => {
         return res.status(404).json({ success: false, message: "User not found" });
       }
       if (req.files.avatar && req.files.avatar[0]) {
-        if (user.profile_image && !isDefaultAvatar(user.profile_image)) await deleteFromCloudinary(user.profile_image);
-        const result = await uploadToCloudinary(req.files.avatar[0].buffer, "share-ed/avatars");
+        stage = "upload_avatar";
+        activeFile = req.files.avatar[0];
+        const result = await uploadToCloudinary(activeFile.buffer, "share-ed/avatars");
         updateData.profile_image = result.secure_url;
+        if (user.profile_image && !isDefaultAvatar(user.profile_image)) staleMedia.push(user.profile_image);
       }
       if (req.files.banner && req.files.banner[0]) {
-        if (user.profile_banner) await deleteFromCloudinary(user.profile_banner);
-        const result = await uploadToCloudinary(req.files.banner[0].buffer, "share-ed/banners");
+        stage = "upload_banner";
+        activeFile = req.files.banner[0];
+        const result = await uploadToCloudinary(activeFile.buffer, "share-ed/banners");
         updateData.profile_banner = result.secure_url;
+        if (user.profile_banner) staleMedia.push(user.profile_banner);
       }
       if (req.files.wallpaper && req.files.wallpaper[0]) {
-        if (user.wallpaper) await deleteFromCloudinary(user.wallpaper);
-        const result = await uploadToCloudinary(req.files.wallpaper[0].buffer, "share-ed/wallpapers");
+        stage = "upload_wallpaper";
+        activeFile = req.files.wallpaper[0];
+        const resourceType = activeFile.mimetype === "video/mp4" ? "video" : "image";
+        const result = await uploadToCloudinary(
+          activeFile.buffer,
+          "share-ed/wallpapers",
+          [],
+          resourceType,
+        );
         updateData.wallpaper = result.secure_url;
+        if (user.wallpaper) staleMedia.push(user.wallpaper);
       }
     }
 
+    stage = "update_profile_database";
+    activeFile = null;
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
@@ -415,6 +434,13 @@ export const updateProfileWithMedia = async (req, res) => {
       },
     });
 
+    // Delete old media only after the new URLs are safely stored. A failed
+    // provider upload must never leave the user's current profile media broken.
+    await Promise.all(staleMedia.map((url) => deleteFromCloudinary(
+      url,
+      url.includes("/video/upload/") ? "video" : "image",
+    )));
+
     // Format response to match frontend expectations
     res.status(200).json({
       success: true,
@@ -433,10 +459,28 @@ export const updateProfileWithMedia = async (req, res) => {
       },
     });
   } catch (error) {
-    logError("controllers.updateProfileWithMedia", error, req);
+    const uploadFailed = stage.startsWith("upload_");
+    const providerStatus = Number(error?.http_code);
+    const status = uploadFailed
+      ? (providerStatus >= 400 && providerStatus < 500 ? 400 : 502)
+      : 500;
+    const mediaType = uploadFailed ? stage.slice("upload_".length).toUpperCase() : null;
+    logError("controllers.updateProfileWithMedia", error, req, {
+      stage,
+      providerStatus: Number.isFinite(providerStatus) ? providerStatus : undefined,
+      mimeType: activeFile?.mimetype,
+      fileSize: activeFile?.size,
+    });
     res
-      .status(500)
-      .json({ success: false, message: "Failed to update profile with media" });
+      .status(status)
+      .json({
+        success: false,
+        code: uploadFailed ? `${mediaType}_UPLOAD_FAILED` : "PROFILE_UPDATE_FAILED",
+        stage,
+        message: uploadFailed
+          ? `อัปโหลด${mediaType === "WALLPAPER" ? "วอลเปเปอร์" : mediaType === "BANNER" ? "แบนเนอร์" : "รูปโปรไฟล์"}ไม่สำเร็จ`
+          : "อัปเดตโปรไฟล์ไม่สำเร็จ",
+      });
   }
 };
 
