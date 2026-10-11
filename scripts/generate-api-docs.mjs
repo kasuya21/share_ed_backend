@@ -146,9 +146,52 @@ Object.assign(swagger.components.schemas, {
       size: { type: "integer" },
     },
   },
+  ProfileWidget: {
+    type: "object",
+    required: ["id", "platformId", "url", "options"],
+    properties: {
+      id: { type: "string", enum: ["facebook", "instagram", "discord", "youtube"] },
+      platformId: { type: "string", enum: ["facebook", "instagram", "discord", "youtube"] },
+      url: { type: "string", format: "uri", maxLength: 2048 },
+      options: {
+        type: "object",
+        properties: { insideProfileCard: { type: "boolean", default: true } },
+        additionalProperties: false,
+      },
+    },
+    additionalProperties: false,
+  },
 });
 
 swagger.paths ??= {};
+
+swagger.paths["/users/me/widgets"] = {
+  get: operation({
+    summary: "Get the current user's profile widgets",
+    tag: "Users",
+    security: true,
+    successDescription: "Saved profile widgets, or null for an account that has not migrated legacy widgets.",
+  }),
+  put: operation({
+    summary: "Replace the current user's profile widgets",
+    description: "Stores up to four unique HTTPS links from the supported social platforms.",
+    tag: "Users",
+    security: true,
+    requestBody: jsonBody({
+      type: "object",
+      required: ["widgets"],
+      properties: {
+        widgets: {
+          type: "array",
+          maxItems: 4,
+          items: { $ref: "#/components/schemas/ProfileWidget" },
+        },
+      },
+      additionalProperties: false,
+    }),
+    successDescription: "The replacement widget list.",
+  }),
+};
 
 swagger.paths["/auth/resend-verification"] = {
   post: operation({

@@ -2,11 +2,14 @@ import express from "express";
 import { updateProfile, updateProfileWithMedia, equipItem, getPublicProfile, getUserInventory } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { profileMediaUpload, uploadConcurrencyGuard } from "../middlewares/upload.middleware.js";
+import { getMyWidgets, updateMyWidgets } from "../controllers/widget.controller.js";
 
 const router = express.Router();
 
 // GET  /api/v1/users/me/inventory — ดึงรายการของรางวัลที่ปลดล็อกแล้วทั้งหมด
 router.get("/me/inventory", authMiddleware, getUserInventory);
+router.get("/me/widgets", authMiddleware, getMyWidgets);
+router.put("/me/widgets", authMiddleware, updateMyWidgets);
 
 // GET  /api/v1/users/:id     — ดูโปรไฟล์ผู้ใช้ (public)
 router.get("/:id", getPublicProfile);

@@ -128,6 +128,7 @@ model User {
 
   education_level EducationLevel?
   social_links    Json?
+  widgets         Json?
   wallpaper       String?
   profile_banner  String?
 

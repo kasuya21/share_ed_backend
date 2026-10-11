@@ -266,28 +266,6 @@
       "name": "Users",
       "item": [
         {
-          "name": "Get Public Profile",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/users/{{id}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users",
-                "{{id}}"
-              ]
-            },
-            "description": "Retrieve public profile information of a user."
-          },
-          "response": []
-        },
-        {
           "name": "Equip Profile Frame",
           "request": {
             "method": "PUT",
@@ -321,6 +299,28 @@
           "response": []
         },
         {
+          "name": "Get Public Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "{{id}}"
+              ]
+            },
+            "description": "Retrieve public profile information of a user."
+          },
+          "response": []
+        },
+        {
           "name": "Get User Inventory",
           "request": {
             "method": "GET",
@@ -337,6 +337,60 @@
               ]
             },
             "description": "Retrieve a list of all unlocked items for the current user."
+          },
+          "response": []
+        },
+        {
+          "name": "Get the current user's profile widgets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/widgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "widgets"
+              ]
+            },
+            "description": "Get the current user's profile widgets"
+          },
+          "response": []
+        },
+        {
+          "name": "Replace the current user's profile widgets",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/widgets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "widgets"
+              ]
+            },
+            "description": "Stores up to four unique HTTPS links from the supported social platforms.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"widgets\": [\n    {\n      \"id\": \"facebook\",\n      \"platformId\": \"facebook\",\n      \"url\": \"string\",\n      \"options\": {\n        \"insideProfileCard\": true\n      }\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         },
@@ -665,6 +719,28 @@
           "response": []
         },
         {
+          "name": "Get Most Liked Posts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/posts/most-liked",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "posts",
+                "most-liked"
+              ]
+            },
+            "description": "Retrieve most liked posts."
+          },
+          "response": []
+        },
+        {
           "name": "Get or follow a protected media download",
           "request": {
             "method": "GET",
@@ -691,28 +767,6 @@
               ]
             },
             "description": "Returns a redirect by default. Send Accept: application/json or redirect=false to receive a signed URL as JSON."
-          },
-          "response": []
-        },
-        {
-          "name": "Get Most Liked Posts",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "auth": {
-              "type": "noauth"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/posts/most-liked",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "posts",
-                "most-liked"
-              ]
-            },
-            "description": "Retrieve most liked posts."
           },
           "response": []
         },
